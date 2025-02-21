@@ -1,54 +1,101 @@
+import os
+import cv2
 import time
 import paho.mqtt.client as paho
 from paho import mqtt
 from dotenv import load_dotenv
-import os
+import matplotlib.pyplot as plt
 
 # Carregar variáveis do arquivo .env
 load_dotenv()
 
-# Acessar as variáveis de ambiente
 mqtt_username = os.getenv("MQTT_USERNAME")
 mqtt_password = os.getenv("MQTT_PASSWORD")
 mqtt_cluster_url = os.getenv("MQTT_CLUSTER_URL")
 
-# Configurar callbacks para diferentes eventos
+# Função chamada quando a conexão com o broker MQTT é estabelecida
 def on_connect(client, userdata, flags, rc, properties=None):
     print("CONNACK recebido com código %s." % rc)
-    if rc == 0:  # Se a conexão foi bem-sucedida
-        # Enviar uma mensagem ao servidor após a conexão bem-sucedida
+    if rc == 0:
         client.publish("teste_de_conexao", payload="Conexão bem-sucedida", qos=1)
         print("Mensagem enviada para o servidor: 'Conexão bem-sucedida'")
+        client.subscribe("seguranca/acesso", qos=1)
 
-def on_publish(client, userdata, mid, properties=None):
-    pass 
-
-def on_subscribe(client, userdata, mid, granted_qos, properties=None):
-    pass 
-
+# Função chamada quando uma mensagem é recebida do servidor MQTT
 def on_message(client, userdata, msg):
-    pass 
+    message = msg.payload.decode("utf-8")
+    print(f"Mensagem recebida: {message}")
+    
+    # Se a mensagem for 'usuário não autorizado', inicia a detecção de pessoa
+    if message.lower() == "usuário não autorizado":
+        print("Acesso negado! Iniciando detecção de pessoa...")
+        detectar_pessoa()
 
-# Criar o cliente MQTT (usando a versão mais recente do protocolo)
-client = paho.Client(client_id="", userdata=None)
+# Função para detectar rosto e corpo da pessoa
+def detectar_pessoa():
+    cap = cv2.VideoCapture(0)  # Conecte à câmera
+
+    if not cap.isOpened():
+        print("Erro ao conectar à câmera do celular. Verifique o IP e o app.")
+        return
+
+    # Carregar os classificadores para rosto e corpo inteiro
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    body_detector = cv2.HOGDescriptor()
+    body_detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Erro ao capturar o vídeo.")
+            break
+
+        # Converte o frame para escala de cinza para melhor detecção de faces
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Detecção de rostos
+        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+
+        # Detecção de corpo inteiro
+        bodies, _ = body_detector.detectMultiScale(frame, winStride=(4, 4), padding=(8, 8), scale=1.05)
+
+        # Desenha retângulos ao redor do rosto
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+            face = frame[y:y + h, x:x + w]
+            cv2.imwrite("face_detectada.jpg", face)
+            print("Imagem do rosto salva!")
+
+        # Desenha retângulos ao redor do corpo
+        for (x, y, w, h) in bodies:
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        # Exibir a imagem com os contornos
+        plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        plt.axis("off")
+        plt.show()
+
+        cap.release()
+        return
+
+    cap.release()
+
+# Configuração do cliente MQTT
+client = paho.Client(client_id="", userdata=None, protocol=paho.MQTTv5)
 client.on_connect = on_connect
-
-# Habilitar TLS para conexão segura
+client.on_message = on_message
 client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-
-# Configurar nome de usuário e senha
 client.username_pw_set(mqtt_username, mqtt_password)
 
-# Conectar ao HiveMQ Cloud
-client.connect(mqtt_cluster_url, 8883)
+# Loop para reconectar até o sucesso
+while True:
+    try:
+        client.connect(mqtt_cluster_url, 8883)
+        client.subscribe("seguranca/acesso", qos=1)  
+        break
+    except Exception as e:
+        print(f"Erro ao conectar: {e}. Tentando novamente em 5 segundos...")
+        time.sleep(5)
 
-# Configurar callbacks
-client.on_subscribe = on_subscribe
-client.on_message = on_message
-client.on_publish = on_publish
-
-# Assinar os tópicos
-client.subscribe("teste_de_conexao", qos=1)
-
-# Iniciar o loop
+# Loop MQTT
 client.loop_forever()
