@@ -5,6 +5,7 @@ import paho.mqtt.client as paho
 from paho import mqtt
 from dotenv import load_dotenv
 import matplotlib.pyplot as plt
+import numpy as np  
 
 # Carregar variáveis do arquivo .env
 load_dotenv()
@@ -13,9 +14,11 @@ mqtt_username = os.getenv("MQTT_USERNAME")
 mqtt_password = os.getenv("MQTT_PASSWORD")
 mqtt_cluster_url = os.getenv("MQTT_CLUSTER_URL")
 
+# Carregar a rede neural pré-treinada MobileNet SSD para detecção de pessoas fiz essa mudanca para ter uma precisao maior 
+net = cv2.dnn.readNetFromCaffe("backend\src\modelos\deploy.prototxt", "backend\src\modelos\mobilenet_iter_73000.caffemodel")
+
 # Função chamada quando a conexão com o broker MQTT é estabelecida
 def on_connect(client, userdata, flags, rc, properties=None):
-    print("CONNACK recebido com código %s." % rc)
     if rc == 0:
         client.publish("teste_de_conexao", payload="Conexão bem-sucedida", qos=1)
         print("Mensagem enviada para o servidor: 'Conexão bem-sucedida'")
@@ -29,54 +32,45 @@ def on_message(client, userdata, msg):
     # Se a mensagem for 'usuário não autorizado', inicia a detecção de pessoa
     if message.lower() == "usuário não autorizado":
         print("Acesso negado! Iniciando detecção de pessoa...")
-        detectar_pessoa()
+        detectar_pessoa_dnn()
 
-# Função para detectar rosto e corpo da pessoa
-def detectar_pessoa():
-    url = "http://192.168.1.7:4747/video"  # Certifique-se de que o IP esteja correto
+# Função para detectar pessoas usando MobileNet SSD
+def detectar_pessoa_dnn():
     cap = cv2.VideoCapture(0)  # Captura de vídeo do DroidCam
 
     if not cap.isOpened():
-        print("Erro ao conectar à câmera do celular. Verifique o IP e o app.")
+        print("Erro ao conectar à câmera.")
         return
 
-    # Carregar os classificadores para rosto e corpo inteiro
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    body_detector = cv2.HOGDescriptor()
-    body_detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
-
     while True:
-        ret, frame = cap.read()  # Captura um novo quadro do vídeo
+        ret, frame = cap.read() 
         if not ret:
             print("Erro ao capturar o vídeo.")
             break
 
-        # Converte o quadro para escala de cinza para melhor detecção de faces
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # Converte a imagem para o formato que a rede exige
+        blob = cv2.dnn.blobFromImage(frame, 0.007843, (300, 300), (127.5, 127.5, 127.5), swapRB=True)
 
-        # Detecção de rostos
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+        # Processa a imagem com a rede
+        net.setInput(blob)
+        detections = net.forward()
 
-        # Detecção de corpo inteiro
-        bodies, _ = body_detector.detectMultiScale(frame, winStride=(4, 4), padding=(8, 8), scale=1.05)
-
-        # Desenha retângulos ao redor do rosto
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-            face = frame[y:y + h, x:x + w]
-            cv2.imwrite("face_detectada.jpg", face)
-            print("Imagem do rosto salva!")
-
-        # Desenha retângulos ao redor do corpo
-        for (x, y, w, h) in bodies:
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        # Itera pelas detecções
+        for i in range(detections.shape[2]):
+            confidence = detections[0, 0, i, 2]
+            if confidence > 0.5:  # Se a confiança for maior que 50% isso podemos ajustar futuramente mas por hora é isso mesmo
+                idx = int(detections[0, 0, i, 1])
+                if idx == 15:  # 15 corresponde a pessoa no modelo
+                    # Obtém as coordenadas do retângulo de detecção
+                    box = detections[0, 0, i, 3:7] * np.array([frame.shape[1], frame.shape[0], frame.shape[1], frame.shape[0]])
+                    (startX, startY, endX, endY) = box.astype("int")
+                    cv2.rectangle(frame, (startX, startY), (endX, endY), (255, 0, 255), 2)  # Desenha o retângulo
 
         # Exibe o vídeo ao vivo na janela do OpenCV
-        cv2.imshow("Detecção ao Vivo", frame)
+        cv2.imshow("Detecção de Pessoas", frame)
 
-        # Pressione 'q' para sair da detecção ao vivo
+        # Pressione 'q' para sair da detecção ao vivo talvez eu faca o cancelamento ser automatico atravez do mqtt
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            print("Saindo da detecção...")
             break
 
     cap.release()  # Libera o recurso da câmera
