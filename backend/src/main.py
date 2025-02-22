@@ -33,7 +33,8 @@ def on_message(client, userdata, msg):
 
 # Função para detectar rosto e corpo da pessoa
 def detectar_pessoa():
-    cap = cv2.VideoCapture(0)  # Conecte à câmera
+    url = "http://192.168.1.7:4747/video"  # Certifique-se de que o IP esteja correto
+    cap = cv2.VideoCapture(0)  # Captura de vídeo do DroidCam
 
     if not cap.isOpened():
         print("Erro ao conectar à câmera do celular. Verifique o IP e o app.")
@@ -45,12 +46,12 @@ def detectar_pessoa():
     body_detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
     while True:
-        ret, frame = cap.read()
+        ret, frame = cap.read()  # Captura um novo quadro do vídeo
         if not ret:
             print("Erro ao capturar o vídeo.")
             break
 
-        # Converte o frame para escala de cinza para melhor detecção de faces
+        # Converte o quadro para escala de cinza para melhor detecção de faces
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Detecção de rostos
@@ -70,15 +71,16 @@ def detectar_pessoa():
         for (x, y, w, h) in bodies:
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        # Exibir a imagem com os contornos
-        plt.imshow(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        plt.axis("off")
-        plt.show()
+        # Exibe o vídeo ao vivo na janela do OpenCV
+        cv2.imshow("Detecção ao Vivo", frame)
 
-        cap.release()
-        return
+        # Pressione 'q' para sair da detecção ao vivo
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            print("Saindo da detecção...")
+            break
 
-    cap.release()
+    cap.release()  # Libera o recurso da câmera
+    cv2.destroyAllWindows()  # Fecha todas as janelas abertas pelo OpenCV
 
 # Configuração do cliente MQTT
 client = paho.Client(client_id="", userdata=None, protocol=paho.MQTTv5)
