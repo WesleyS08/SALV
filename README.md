@@ -8,11 +8,9 @@
 
 - [Sobre o Projeto](#sobre-o-projeto-)
 - [Autores](#autores-)
-- [Funcionalidades](#funcionalidades-)
-- [Tecnologias Utilizadas](#tecnologias-utilizadas-)
-  - [Hardware e Sensores](#hardware-e-sensores)
-  - [Software e Backend](#software-e-backend)
-  - [Protocolos de Automação](#protocolos-de-automação)
+- [Funcionalidades](#funcionalidades)
+- [Tecnologias Utilizadas](#tecnologias-utilizadas)
+
   
 ---
 
@@ -31,7 +29,7 @@ Este trabalho foi apresentado como requisito parcial para obtenção do título 
 
 ---
 
-## Funcionalidades ⚙️📲🔔
+## Funcionalidades
 
 | **Funcionalidade**                | **Descrição**                                                                                  |
 |------------------------------------|-----------------------------------------------------------------------------------------------|
@@ -44,11 +42,11 @@ Este trabalho foi apresentado como requisito parcial para obtenção do título 
 
 ---
 
-## Tecnologias Utilizadas 🖥️📡🤖
+## Tecnologias Utilizadas
 
 O SALV foi desenvolvido com uma série de tecnologias e APIs divididas em três componentes principais para garantir escalabilidade, eficiência e facilidade de manutenção. Confira abaixo as tecnologias utilizadas:
 
-### 1. **Hardware e Sensores** 📡
+### 1. **Hardware e Sensores**
 
 Responsáveis pela captura de dados do ambiente, utilizando sensores de movimento, câmeras e dispositivos de autenticação.
 
@@ -63,7 +61,7 @@ Responsáveis pela captura de dados do ambiente, utilizando sensores de moviment
 
 ---
 
-### 2. **Software e Backend** 💻
+### 2. **Software e Backend**
 
 O software é responsável pelo processamento dos dados, incluindo a detecção facial, autenticação de usuários e envio de notificações.
 
@@ -78,7 +76,7 @@ O software é responsável pelo processamento dos dados, incluindo a detecção 
 
 ---
 
-### 3. **Protocolos de Automação** 🔄
+### 3. **Protocolos de Automação**
 
 Esses protocolos garantem a operação contínua e autônoma do sistema, com funcionalidades como inicialização automática e acionamento remoto de dispositivos.
 
