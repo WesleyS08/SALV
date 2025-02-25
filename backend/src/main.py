@@ -5,7 +5,8 @@ import paho.mqtt.client as paho
 from paho import mqtt
 from dotenv import load_dotenv
 import matplotlib.pyplot as plt
-import numpy as np  
+import numpy as np
+from supabase import create_client, Client  
 
 # Carregar variáveis do arquivo .env
 load_dotenv()
@@ -13,16 +14,42 @@ load_dotenv()
 mqtt_username = os.getenv("MQTT_USERNAME")
 mqtt_password = os.getenv("MQTT_PASSWORD")
 mqtt_cluster_url = os.getenv("MQTT_CLUSTER_URL")
+supabase_url = os.getvenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+
+
+#banco de dados
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # Carregar a rede neural pré-treinada MobileNet SSD para detecção de pessoas fiz essa mudanca para ter uma precisao maior 
 net = cv2.dnn.readNetFromCaffe("backend\src\modelos\deploy.prototxt", "backend\src\modelos\mobilenet_iter_73000.caffemodel")
+
+
+#topicos
+def obter_topicos():
+    try:
+        #colocar um if para trazer do usario especifico
+        response = supabase.table('topicos').select('topicos').execute()
+        if response.data:
+            topicos = [t['topico'] for t in response.data]
+            return topicos
+        else: 
+            return ["seguranca/acesso"]
+        except Exception as e:
+            print(f"Error ao buscar topicos no Supabase: {e}")
+            return["seguranca/acesso"]
+
 
 # Função chamada quando a conexão com o broker MQTT é estabelecida
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         client.publish("teste_de_conexao", payload="Conexão bem-sucedida", qos=1)
         print("Mensagem enviada para o servidor: 'Conexão bem-sucedida'")
-        client.subscribe("seguranca/acesso", qos=1)
+
+        topicos = obter_topicos()
+        for topico in topicos:
+            client.subscribe(topico, qos=1)
+            print(f"Inscrito no topico {topico}")
 
 # Função chamada quando uma mensagem é recebida do servidor MQTT
 def on_message(client, userdata, msg):
@@ -31,7 +58,7 @@ def on_message(client, userdata, msg):
     
     # Se a mensagem for 'usuário não autorizado', inicia a detecção de pessoa
     if message.lower() == "usuário não autorizado":
-        print("Acesso negado! Iniciando detecção de pessoa...")
+        print("Acesso negado!  Iniciando detecção de pessoa...")
         detectar_pessoa_dnn()
 
 # Função para detectar pessoas usando MobileNet SSD
