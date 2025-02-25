@@ -35,7 +35,7 @@ def obter_topicos():
             return topicos
         else: 
             return ["seguranca/acesso"]
-        except Exception as e:
+    except Exception as e:
             print(f"Error ao buscar topicos no Supabase: {e}")
             return["seguranca/acesso"]
 
