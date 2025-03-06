@@ -1,59 +1,48 @@
 # SALV - Sistema de Alerta Laboratorial com Visão ⚡🔍📡
 
-**SALV** é um sistema de segurança integrado que utiliza tecnologias como detecção de movimento, reconhecimento facial e notificações em tempo real. Projetado para monitoramento automatizado de laboratórios ou ambientes restritos, oferece uma solução acessível e eficiente para controle de acesso e proteção de dados.
 
 ---
 
 ## 🚀 Índice
 
-- [Sobre o Projeto](#sobre-o-projeto-)
-- [Autores](#autores-)
+- [Sobre o Projeto](#sobre-o-projeto)
 - [Funcionalidades](#funcionalidades)
 - [Tecnologias Utilizadas](#tecnologias-utilizadas)
-
-  
----
-
-## Sobre o Projeto ⚡🔍📡
-
-SALV (Sistema de Alerta Laboratorial com Visão) é uma solução de segurança que integra a detecção de movimento, reconhecimento facial e notificações instantâneas para monitoramento eficiente e automatizado de ambientes. Ideal para laboratórios e locais restritos, o sistema oferece proteção de dados e controle de acesso acessível e de baixo custo.
+  - [Hardware e Sensores](#hardware-e-sensores)
+  - [Software e Backend](#software-e-backend)
+  - [Protocolos de Automação](#protocolos-de-automação)
+  - [Comunicação e Protocolos](#comunicação-e-protocolos)
+- [Autores](#autores-)
 
 ---
 
-## Autores 👨‍💻👨‍💻🎓
+## Sobre o Projeto⚡🔍📡
 
-- **Davi de Brito Junior**
-- **Wesley Silva dos Santos**
-
-Este trabalho foi apresentado como requisito parcial para obtenção do título de graduação tecnológica em **Desenvolvimento de Software Multiplataforma** na **Faculdade de Tecnologia Zona Sul – Dom Paulo Evaristo Arns**, sob a orientação do Prof. Dr. Winston Aparecido Andrade.
-
----
+SALV (Sistema de Alerta Laboratorial com Visão) é uma solução de segurança que integra a detecção de movimento, detecção facial e notificações instantâneas para monitoramento eficiente e automatizado de ambientes. Ideal para laboratórios e locais restritos, o sistema oferece proteção de dados e controle de acesso acessível e de baixo custo.
 
 ## Funcionalidades
 
-| **Funcionalidade**                | **Descrição**                                                                                  |
-|------------------------------------|-----------------------------------------------------------------------------------------------|
-| **Detecção de Movimento**          | Monitora o ambiente e ativa o sistema quando movimento é detectado.                           |
+| **Funcionalidade**               | **Descrição**                                                                                  |
+|:------------------------------------:|:-----------------------------------------------------------------------------------------------:|
+| **Detecção de Movimento**         | Monitora o ambiente e ativa o sistema quando movimento é detectado.                           |
 | **Detecção Facial**                | Reconhece o rosto da pessoa e destaca na filmagem.                                            |
 | **Autenticação com Cartões de Acesso** | Permite o acesso apenas a usuários com cartões válidos.                                   |
 | **Gravação Automática**            | Registra imagens e vídeos quando acessos não autorizados são detectados.                      |
 | **Notificações em Tempo Real**    | Envia alertas instantâneos para o aplicativo móvel, permitindo respostas rápidas.              |
 
-
 ---
 
 ## Tecnologias Utilizadas
 
-O SALV foi desenvolvido com uma série de tecnologias e APIs divididas em três componentes principais para garantir escalabilidade, eficiência e facilidade de manutenção. Confira abaixo as tecnologias utilizadas:
+O SALV foi desenvolvido com uma série de tecnologias e APIs divididas em algumas partes principais para garantir escalabilidade, eficiência e facilidade de manutenção. Confira abaixo as tecnologias utilizadas:
 
-### 1. **Hardware e Sensores**
+### **Hardware e Sensores**
 
 Responsáveis pela captura de dados do ambiente, utilizando sensores de movimento, câmeras e dispositivos de autenticação.
 
 | **Tecnologia**              | **Descrição**                                                               |
-|-----------------------------|----------------------------------------------------------------------------|
+|-----------------------------|----------------------------------------------------------------------------:|
 | **ESP32**                   | Controladores que integram sensores e comunicam com o sistema central.      |
-| **Raspberry Pi Camera**     | Câmeras que capturam imagens para a detecção facial.                        |
 | **Webcam**                  | Alternativa para o Raspberry Pi câmera afim de diminuir o custo             |
 | **Leitor RFID**             | Permite autenticação através de cartões de acesso.                          |
 | **LCD ( Pode ser substituído por leds)**                     | Melhora no entendimento do sistema permitindo repassar mensagens do sistema.|
@@ -61,12 +50,12 @@ Responsáveis pela captura de dados do ambiente, utilizando sensores de moviment
 
 ---
 
-### 2. **Software e Backend**
+### **Software e Backend**
 
 O software é responsável pelo processamento dos dados, incluindo a detecção facial, autenticação de usuários e envio de notificações.
 
 | **Tecnologia**              | **Descrição**                                                               |
-|-----------------------------|----------------------------------------------------------------------------|
+|-----------------------------|:----------------------------------------------------------------------------:|
 | **OpenCV**                  | Biblioteca para detecção de movimento e faces em tempo real.                |
 | **Python**                  | Linguagem principal para controle e análise das imagens e dados.           |
 | **Supabase**                | Banco de dados e serviço de autenticação segura.                            |
@@ -76,15 +65,53 @@ O software é responsável pelo processamento dos dados, incluindo a detecção 
 
 ---
 
-### 3. **Protocolos de Automação**
+### **Protocolos de Automação**
 
 Esses protocolos garantem a operação contínua e autônoma do sistema, com funcionalidades como inicialização automática e acionamento remoto de dispositivos.
 
 | **Tecnologia**           | **Descrição**                                                               |
-|--------------------------|----------------------------------------------------------------------------|
-| **Wake-on-Lan (WOL)**     | Permite ligar o PC remotamente usando o ESP32, caso o PC esteja desligado. |
+|--------------------------|:----------------------------------------------------------------------------:|
+| **Wake-on-Lan (WOL)**     | Permite ligar o PC remotamente usando o ESP32, caso o PC esteja desligado ( Garanta que seu computador seja compatível). |
 | **Task Scheduler**        | Automatiza a inicialização do programa Python ao ligar o PC.                |
 | **AutoStart (Python Script)** | Configuração para iniciar automaticamente os serviços ao ligar a máquina. |
 
 ---
+---
 
+## **Comunicação e Protocolos**
+
+O sistema **SALV** utiliza protocolos de comunicação e APIs para garantir uma troca de informações eficiente e em tempo real entre os dispositivos, como sensores, câmeras, e o sistema central. O uso do **MQTT** e APIs específicas permite uma integração ágil e a resposta rápida aos eventos detectados.
+
+#### - **MQTT - Message Queuing Telemetry Transport (protocolo de comunicação máquina para máquina)**
+
+O MQTT (Message Queuing Telemetry Transport) é um protocolo de comunicação eficiente e de baixo consumo de banda, ideal para o SALV, pois possibilita uma comunicação em tempo real entre dispositivos e o servidor. Com sua leveza e baixo overhead, o MQTT facilita a troca de dados de maneira confiável, permitindo que sensores como os de movimento e câmeras se comuniquem rapidamente com o backend para o processamento de informações críticas.
+
+| **Tecnologia**            | **Descrição**                                                                 |
+|---------------------------|:-------------------------------------------------------------------------------:|
+| **MQTT Broker**            | Responsável por gerenciar a troca de mensagens entre os dispositivos.          |
+| **Dispositivos de Envio**  | Sensores de movimento que enviam dados via MQTT para o servidor.    |
+| **Assinantes MQTT**       | Backend e aplicativos que recebem notificações sobre eventos e mudanças.      |
+| **Gerenciamento de Tópicos** | Organiza os fluxos de comunicação, como o status do sistema e eventos críticos. |
+
+Para este projeto, optamos pelo **[HiveMQ](https://www.hivemq.com/)**, uma plataforma MQTT robusta e confiável. No entanto, outras opções amplamente usadas no mercado, como o **Mosquitto**, também podem ser implementadas de acordo com a necessidade do projeto.
+
+Com o objetivo de uma melhor organização e gestão das mensagens, nosso MQTT utiliza três tópicos principais:
+
+| **Tópico**            | **Descrição**                                                                 |
+|-----------------------|:-------------------------------------------------------------------------------:|
+| **topico/Teste**       | Tópico dedicado exclusivamente para testes com o MQTT, sem funções específicas. |
+| **Acesso/Permitido**   | Tópico responsável por enviar atualizações à API, sinalizando que o acesso foi autorizado. |
+| **Acesso/Negado**      | Tópico que aciona os protocolos de segurança do sistema, como início de gravação, alertas e outras medidas de segurança, caso o acesso seja negado. |
+
+#### ° **API RESTful para Integração de Funcionalidades**
+
+escrever o texto depois 
+---
+
+
+## Autores 👨‍💻👨‍💻🎓
+
+- **Davi de Brito Junior**
+- **Wesley Silva dos Santos**
+
+Este trabalho foi apresentado como requisito parcial para obtenção do título de graduação tecnológica em **Desenvolvimento de Software Multiplataforma** na **Faculdade de Tecnologia Zona Sul – Dom Paulo Evaristo Arns**, sob a orientação do Prof. Dr. Winston Aparecido Andrade.
