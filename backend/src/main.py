@@ -1,13 +1,15 @@
 import os
 import cv2
 import time
+import numpy as np
 import paho.mqtt.client as paho
+import subprocess
+import threading
+import requests
 from paho import mqtt
 from dotenv import load_dotenv
-import numpy as np
 from supabase import create_client, Client
 from flask import Flask, Response
-import threading
 
 # Carregar variáveis do arquivo .env
 load_dotenv()
@@ -97,7 +99,7 @@ def gerar_video():
                                 face_roi = frame[face_startY:face_endY, face_startX:face_endX]
                                 if face_roi.size != 0:
                                     face_resized = cv2.resize(face_roi, (150, 150), interpolation=cv2.INTER_LINEAR)
-                                    frame[10:160, width-160:width-10] = face_resized  # Desenha no canto superior direito
+                                    frame[10:160, width-160:width-10] = face_resized  # Desenha no canto superior direito ou podemos colocar uma tela separada mas acho zoado 
 
         frame_atual = frame
 
@@ -137,6 +139,46 @@ def on_message(client, userdata, msg):
             duracao = hora_fim - hora_inicio
             print(f"Detecção encerrada. Duração total: {duracao:.2f} segundos")
 
+def salvar_link_ngrok(url):
+    try:
+        response = supabase.table('ngrok_links'.upsert({"url":url})).execute()
+        if response.status_code == 200:
+            print("Link ngrok salvo/atualizado no supabse com sucesso")
+        else:
+            print("Erro ao salvar link no Supabase", response)
+    except Exception as e:
+        print(f"Error ao conectar  ao supabase: {e}")
+
+def start_ngrok():
+    print ("Iniciando o Ngrok...")
+    ngrok_process = subprocess.Popen(['ngrok', 'http', '5000'], stdout= subprocess.PIPE, stderr=subprocess.PIPE)
+
+    time.sleep(4)
+
+    try:
+        url = requests.get('http://localhost:4040/api/tunnels').json()
+        public_url = url ['tunnels'][0]['public_url']
+        print(f"Seu servidor Flask esta acessivel em: {public_url}")
+    
+        salvar_link_ngrok
+    except Exception as e:
+        print("Erro ao obter URL do ngrok", e)
+
+def salvar_informacoes_filmagem(inicio, fim, duracao, url_video):
+    try:
+        response = supabase.table('filmagens').insert([{
+            'inicio': inicio,
+            'fim': fim,
+            'duracao': duracao
+            'url_video': url_video
+        }]),execute()
+        if response.status_code == 200:
+            print("Informaçõesde filmagem salvas com sucesso no supabase")
+        else:
+            print("Error ao salvar filmagem no supabase", response)
+    except Exception as e:
+         print(f"Erro ao conectar ao Supabase: {e}") 
+         
 client = paho.Client(client_id="", userdata=None, protocol=paho.MQTTv5, callback_api_version=paho.CallbackAPIVersion.VERSION2)
 client.on_message = on_message
 client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
@@ -156,5 +198,10 @@ while True:
 # Rodar o Flask em uma thread separada
 flask_thread = threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5000, "threaded": True})
 flask_thread.start()
+
+#Iniciar o ngrok
+ngrok_theread = threading.Thread(target=start_ngrok)
+ngrok_theread.start()
+
 
 client.loop_forever()
