@@ -22,14 +22,17 @@ supabase_key = os.getenv("SUPABASE_KEY")
 
 # Conectar ao Supabase
 supabase: Client = create_client(supabase_url, supabase_key)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
 
 # Rede neural pré-treinada MobileNet SSD para detecção de pessoas
-net = cv2.dnn.readNetFromCaffe("backend/src/modelos/deploy.prototxt", "backend/src/modelos/mobilenet_iter_73000.caffemodel")
+net = cv2.dnn.readNetFromCaffe(
+    os.path.join(BASE_DIR, "modelos", "deploy.prototxt"),
+    os.path.join(BASE_DIR, "modelos", "mobilenet_iter_73000.caffemodel")
+)
 
-# Carregar o detector de rostos DNN-based do OpenCV
 face_detector = cv2.dnn.readNetFromCaffe(
-    "backend/src/modelos/deployfaces.prototxt", 
-    "backend/src/modelos/res10_300x300_ssd_iter_140000.caffemodel" 
+    os.path.join(BASE_DIR, "modelos", "deployfaces.prototxt"),
+    os.path.join(BASE_DIR, "modelos", "res10_300x300_ssd_iter_140000.caffemodel")
 )
 
 # Variáveis de controle para gravação
