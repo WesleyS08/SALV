@@ -7,6 +7,7 @@ import Home from '../screens/Home';
 import AoVivo from '../screens/AoVivo';
 import Gravações from '../screens/Gravacoes';
 import Conta from '../screens/Conta';
+import Introducao from '../screens/Introducao';
 
 const Tab = createBottomTabNavigator();
 
@@ -20,6 +21,7 @@ export default function AppTabs() {
                 },
             }}
         >
+        
             <Tab.Screen
                 name="Home"
                 component={Home}
