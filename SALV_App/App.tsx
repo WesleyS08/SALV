@@ -5,10 +5,10 @@ import { AnimatedCircularProgress } from 'react-native-circular-progress';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
-import { Accelerometer } from 'expo-sensors';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AuthStack from './src/navigation/AuthStack';
+import 'react-native-gesture-handler';
 
 interface AccelerometerData {
     x: number;
@@ -95,24 +95,12 @@ function AppNavigation() {
     const sliderRef = useRef<AppIntroSlider>(null);
 
     useEffect(() => {
-        // const checkOnboardingStatus = async () => {
-        //     try {
-        //         const hasViewedOnboarding = await AsyncStorage.getItem('hasViewedOnboarding');
-        //         if (hasViewedOnboarding === 'true') {
-        //             setShowAuth(true);
-        //         }
-        //     } catch (error) {
-        //         console.error('Erro ao verificar status de onboarding:', error);
-        //     }
-        // };
-        // checkOnboardingStatus();
-
-
         Ionicons.loadFont(); // Carregar as fontes dos ícones
     }, []);
 
     useEffect(() => {
-        const subscription = Accelerometer.addListener(({ x, y, z }: AccelerometerData) => {
+        const handleDeviceMotion = (event: DeviceMotionEvent) => {
+            const { x, y, z } = event.accelerationIncludingGravity;
             const threshold = 1.5;
 
             if (Math.abs(x) > threshold) {
@@ -131,9 +119,17 @@ function AppNavigation() {
                     });
                 }
             }
-        });
+        };
 
-        return () => subscription.remove();
+        if (typeof window !== 'undefined' && window.DeviceMotionEvent) {
+            window.addEventListener('devicemotion', handleDeviceMotion);
+        }
+
+        return () => {
+            if (typeof window !== 'undefined' && window.DeviceMotionEvent) {
+                window.removeEventListener('devicemotion', handleDeviceMotion);
+            }
+        };
     }, []);
 
     // Atualize o goToSlide somente quando o currentIndex mudar
@@ -142,7 +138,6 @@ function AppNavigation() {
             sliderRef.current.goToSlide(currentIndex, true);
         }
     }, [currentIndex]);
-
 
     if (showAuth) {
         return <AuthStack />;
@@ -193,7 +188,6 @@ function AppNavigation() {
                     )}
                 </AnimatedCircularProgress>
             </View>
-
         </View>
     );
 }
@@ -212,7 +206,6 @@ export default function App() {
                 <Stack.Screen name="Auth" component={AuthStack} />
             </Stack.Navigator>
         </NavigationContainer>
-
     );
 }
 
