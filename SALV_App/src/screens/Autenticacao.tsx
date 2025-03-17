@@ -22,6 +22,7 @@ const styles = StyleSheet.create({
     marginTop: -550, // Adjust margin to move closer to the logo
     fontWeight: 'bold',
     left: -60,
+    top: 40,
   },
   welcomeText1: {
     color: 'black',
@@ -286,7 +287,7 @@ export default function Principal() {
         </View>
         <Text style={styles.welcomeText7}>
                serão aplicados.
-            </Text>
+        </Text>
         <TouchableOpacity
           style={styles.buttonContainer}
           onPress={() => navigation.navigate('Login')}

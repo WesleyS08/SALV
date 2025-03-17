@@ -71,7 +71,7 @@ export default function Index() {
         <Text style={styles.welcomeText1}>Único sistema que te auxilia em vigilância e proteção em ambientes laboratórias.</Text>
         <TouchableOpacity
           style={styles.buttonContainer}
-          onPress={() => navigation.navigate('Principal')}
+          onPress={() => navigation.navigate('Autenticacao')}
         >
           <Text style={styles.buttonText}>Próximo</Text>
         </TouchableOpacity>
