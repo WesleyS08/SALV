@@ -52,13 +52,13 @@ const Login = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => navigation.navigate('BoasVindas')}>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
         <ImageBackground
           source={require('../images/seta.png')}
           style={styles.background} 
         />
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate('BoasVindas')}>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
         <Text style={styles.voltar}>Voltar</Text>
       </TouchableOpacity>
       
@@ -90,7 +90,7 @@ const Login = ({ navigation }: any) => {
       <Text style={styles.welcomeText1}>Caso o e-mail informado não esteja cadastrado, automaticamente será feito um cadastro.</Text>
       <TouchableOpacity
         style={styles.buttonContainer}
-        onPress={handleLogin}
+        onPress={() => navigation.navigate('Home')}
       >
         <Text style={styles.buttonText}>Continuar com Email</Text>
       </TouchableOpacity>
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     left: 80,
   },
   buttonText: {
-    color: 'black',
+    color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
