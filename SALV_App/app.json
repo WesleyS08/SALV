@@ -10,6 +10,9 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
+    }, 
+    "androidStatusBar": {
+      "visible": false
     },
     "android": {
       "adaptiveIcon": {
