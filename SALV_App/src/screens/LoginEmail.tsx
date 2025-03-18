@@ -83,7 +83,7 @@ const Login = ({ navigation }: any) => {
       />
       <Text style={styles.title2}>
         Esqueceu sua senha?{' '}
-        <TouchableOpacity onPress={() => navigation.navigate('ResetPassword')}>
+        <TouchableOpacity onPress={() => navigation.navigate('EsqueciSenha')}>
           <Text style={styles.linkText}>Senha</Text>
         </TouchableOpacity>
       </Text>

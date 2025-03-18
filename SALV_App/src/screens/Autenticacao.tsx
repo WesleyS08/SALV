@@ -296,7 +296,7 @@ export default function Principal() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.buttonContainer1}
-          onPress={() => navigation.navigate('Biometria')}
+          onPress={() => navigation.navigate('LoginBiometria')}
         >
           <Text style={styles.buttonText1}>Continuar com Biometria</Text>
         </TouchableOpacity>
