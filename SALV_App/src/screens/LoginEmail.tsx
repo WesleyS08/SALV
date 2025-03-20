@@ -1,21 +1,83 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, StyleSheet, Text, Modal, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, TextInput, StyleSheet, Text, Modal, TouchableOpacity, ImageBackground, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { firebase } from '../firebase/config';
 
 const Login = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (email && password) {
-      // Lógica de autenticação
-      navigation.navigate('Home');  // Navega para a tela Home após login
-    } else {
+  const validateEmail = (email: string) => {
+    const re = /\S+@\S+\.\S+/;
+    return re.test(email);
+  };
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setModalMessage('Email e senha são obrigatórios.');
       setModalVisible(true);
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setModalMessage('Formato de email inválido.');
+      setModalVisible(true);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Tenta fazer login primeiro
+      const loginResponse = await firebase.auth().signInWithEmailAndPassword(email, password);
+      const uid = loginResponse.user.uid;
+
+      const userData = {
+        id: uid,
+        email,
+      };
+
+      setLoading(false);
+      navigation.navigate('Home', { user: userData });  // Navega para a tela Home após login
+    } catch (loginError) {
+      if (loginError.code === 'auth/user-not-found') {
+        // Se o usuário não existir, cria a conta
+        try {
+          const createResponse = await firebase.auth().createUserWithEmailAndPassword(email, password);
+          const uid = createResponse.user.uid;
+
+          const userData = {
+            id: uid,
+            email,
+          };
+
+          // Adiciona o usuário ao Firestore
+          await firebase.firestore().collection('usuarios').doc(uid).set(userData);
+
+          setLoading(false);
+          navigation.navigate('Home', { user: userData });  // Navega para a tela Home após cadastro
+        } catch (createError) {
+          setLoading(false);
+          console.error(createError);
+          setModalMessage(createError.message);
+          setModalVisible(true);
+        }
+      } else if (loginError.code === 'auth/invalid-credential') {
+        setLoading(false);
+        setModalMessage('Credenciais inválidas. Por favor, verifique seu email e senha.');
+        setModalVisible(true);
+      } else {
+        setLoading(false);
+        console.error(loginError);
+        setModalMessage(loginError.message);
+        setModalVisible(true);
+      }
     }
   };
 
@@ -90,9 +152,14 @@ const Login = ({ navigation }: any) => {
       <Text style={styles.welcomeText1}>Caso o e-mail informado não esteja cadastrado, automaticamente será feito um cadastro.</Text>
       <TouchableOpacity
         style={styles.buttonContainer}
-        onPress={() => navigation.navigate('Home')}
+        onPress={handleLogin}
+        disabled={loading}
       >
-        <Text style={styles.buttonText}>Continuar com Email</Text>
+        {loading ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={styles.buttonText}>Continuar com Email</Text>
+        )}
       </TouchableOpacity>
       <View style={{ alignItems: 'center', marginTop: 20, top: 130, left: -10 }}>
         <Text style={styles.welcomeText6}>
@@ -122,14 +189,7 @@ const Login = ({ navigation }: any) => {
             >
               <Ionicons name="close" size={24} color="black" />
             </TouchableOpacity>
-            <Text style={styles.modalText}>{termsText}</Text>
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => handleDownload(termsText, 'termos_condicoes.txt')}
-            >
-              <Ionicons name="download" size={24} color="white" />
-              <Text style={styles.downloadButtonText}>Baixar</Text>
-            </TouchableOpacity>
+            <Text style={styles.modalText}>{modalMessage}</Text>
           </View>
         </View>
       </Modal>

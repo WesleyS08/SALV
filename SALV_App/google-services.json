@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "336590363532",
+    "project_id": "salv-3318f",
+    "storage_bucket": "salv-3318f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:336590363532:android:8114e02667f0d1371854a9",
+        "android_client_info": {
+          "package_name": "com.reactnativefirebase"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVc2UlmMzLLQxhlnFAlVGtlgLs6yOridQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
