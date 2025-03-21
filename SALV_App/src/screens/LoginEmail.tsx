@@ -3,7 +3,10 @@ import { View, TextInput, StyleSheet, Text, Modal, TouchableOpacity, ImageBackgr
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { firebase } from '../firebase/config';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { app } from '../../firebase'; // Importa a instância do Firebase App inicializada
+
+
 
 const Login = ({ navigation }: any) => {
   const [email, setEmail] = useState('');
@@ -34,8 +37,9 @@ const Login = ({ navigation }: any) => {
     setLoading(true);
 
     try {
-      // Tenta fazer login primeiro
-      const loginResponse = await firebase.auth().signInWithEmailAndPassword(email, password);
+      // Tenta fazer login
+      const auth = getAuth(app); // Usa a instância do Firebase App inicializada
+      const loginResponse = await signInWithEmailAndPassword(auth, email, password);
       const uid = loginResponse.user.uid;
 
       const userData = {
@@ -46,41 +50,15 @@ const Login = ({ navigation }: any) => {
       setLoading(false);
       navigation.navigate('Home', { user: userData });  // Navega para a tela Home após login
     } catch (loginError) {
-      if (loginError.code === 'auth/user-not-found') {
-        // Se o usuário não existir, cria a conta
-        try {
-          const createResponse = await firebase.auth().createUserWithEmailAndPassword(email, password);
-          const uid = createResponse.user.uid;
-
-          const userData = {
-            id: uid,
-            email,
-          };
-
-          // Adiciona o usuário ao Firestore
-          await firebase.firestore().collection('usuarios').doc(uid).set(userData);
-
-          setLoading(false);
-          navigation.navigate('Home', { user: userData });  // Navega para a tela Home após cadastro
-        } catch (createError) {
-          setLoading(false);
-          console.error(createError);
-          setModalMessage(createError.message);
-          setModalVisible(true);
-        }
-      } else if (loginError.code === 'auth/invalid-credential') {
-        setLoading(false);
+      setLoading(false);
+      if (loginError.code === 'auth/invalid-credential') {
         setModalMessage('Credenciais inválidas. Por favor, verifique seu email e senha.');
-        setModalVisible(true);
       } else {
-        setLoading(false);
-        console.error(loginError);
         setModalMessage(loginError.message);
-        setModalVisible(true);
       }
+      setModalVisible(true);
     }
   };
-
   const handleDownload = async (text, fileName) => {
     try {
       const fileUri = FileSystem.documentDirectory + fileName;
@@ -129,7 +107,7 @@ const Login = ({ navigation }: any) => {
         style={styles.email}
       />
       <Text style={styles.title}>Digite seu E-mail.</Text>
-      <Text style={styles.title1}>Insira o e-mail associado à sua conta ou crie uma.</Text>
+      <Text style={styles.title1}>Insira o e-mail associado à sua conta.</Text>
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -149,7 +127,12 @@ const Login = ({ navigation }: any) => {
           <Text style={styles.linkText}>Senha</Text>
         </TouchableOpacity>
       </Text>
-      <Text style={styles.welcomeText1}>Caso o e-mail informado não esteja cadastrado, automaticamente será feito um cadastro.</Text>
+      <Text style={styles.title3}>
+        Não tem uma conta?{' '}
+        <TouchableOpacity onPress={() => navigation.navigate('Cadastro')}>
+          <Text style={styles.linkText1}>Cadastre-se</Text>
+        </TouchableOpacity>
+      </Text>
       <TouchableOpacity
         style={styles.buttonContainer}
         onPress={handleLogin}
@@ -161,20 +144,6 @@ const Login = ({ navigation }: any) => {
           <Text style={styles.buttonText}>Continuar com Email</Text>
         )}
       </TouchableOpacity>
-      <View style={{ alignItems: 'center', marginTop: 20, top: 130, left: -10 }}>
-        <Text style={styles.welcomeText6}>
-          Se você estiver criando uma nova conta,{' '}
-          <TouchableOpacity onPress={() => setModalVisible(true)}>
-            <Text style={styles.linkText2}>Termos e Condições</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setPrivacyModalVisible(true)}>
-            <Text style={styles.linkText1}> {'\n'} Política de Privacidade</Text>
-          </TouchableOpacity>
-        </Text>
-      </View>
-      <Text style={styles.welcomeText7}>
-        serão aplicados.
-      </Text>
       <Modal
         animationType="slide"
         transparent={true}
@@ -262,39 +231,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 10,
-  },
-  welcomeText7: {
-    color: 'black',
-    fontSize: 12,
-    marginTop: 10, // Adjust margin if needed
-    textAlign: 'center', // Center the text
-    fontFamily: 'Regular 400',
-    fontWeight: 'bold',
-    position: 'absolute',
-    top: 797, // Adjust this value as needed
-    left: '73%',
-    transform: [{ translateX: -50 }],
-  },
-  linkText1: {
-    color: 'blue',
-    textDecorationLine: 'underline',
-    fontSize: 12,
-    top: 20,
-    left: '-200%',
-  },
-  linkText2: {
-    color: 'blue',
-    textDecorationLine: 'underline',
-    fontSize: 12,
-  },
-  welcomeText6: {
-    color: 'black',
-    fontSize: 12,
-    marginTop: 10, // Adjust margin if needed
-    textAlign: 'center', // Center the text
-    fontFamily: 'Regular 400',
-    fontWeight: 'bold',
-    left: '10%',
   },
   buttonContainer: {
     position: 'absolute',
@@ -385,6 +321,22 @@ const styles = StyleSheet.create({
     left: -60,
   },
   linkText: {
+    color: 'blue',
+  },
+  title3: {
+    width: 206,
+    height: 23,
+    fontFamily: "Regular 400",
+    fontSize: 15,
+    fontWeight: "300",
+    fontStyle: "normal",
+    lineHeight: 23,
+    color: "#797979",
+    top: 160,
+    marginBottom: 20,
+    left: 10,
+  },
+  linkText1: {
     color: 'blue',
   },
   title1: {

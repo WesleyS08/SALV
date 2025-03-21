@@ -263,7 +263,6 @@ export default function Principal() {
           style={styles.logo} // Apply the logo style here
         />
         <Text style={styles.welcomeText}>SALV</Text>
-        <Text style={styles.welcomeText1}>Caso o e-mail informado não esteja cadastrado, automaticamente será feito um cadastro.</Text>
         <Text style={styles.welcomeText2}>
           Segurança inteligente para laboratórios.{"\n"}
           Monitore, proteja e tenha controle total!
