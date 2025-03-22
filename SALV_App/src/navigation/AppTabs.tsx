@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-
+import { useDarkMode } from '../Global/DarkModeContext';
 import Home from '../screens/Home';
 import AoVivo from '../screens/AoVivo';
 import Gravações from '../screens/Gravacoes';
@@ -10,17 +10,19 @@ import Conta from '../screens/Conta';
 const Tab = createBottomTabNavigator();
 
 export default function AppTabs() {
+    const { isDarkMode, toggleDarkMode } = useDarkMode();
+
     return (
         <Tab.Navigator
             screenOptions={{
-                headerShown: false, 
+                headerShown: false,
                 tabBarLabelStyle: {
-                    fontSize: 14,  
+                    fontSize: 14,
                 },
-                tabBarActiveTintColor: '#04C6AE',  
-                tabBarInactiveTintColor: 'gray', 
+                tabBarActiveTintColor: isDarkMode ? '#04C6AE' : '#00796B',  
+                tabBarInactiveTintColor: isDarkMode ? 'gray' : '#757575',  
                 tabBarStyle: {
-                    backgroundColor: '#EDE9F1',  
+                    backgroundColor: isDarkMode ? '#333333' : '#EDE9F1',  
                 },
             }}
         >
