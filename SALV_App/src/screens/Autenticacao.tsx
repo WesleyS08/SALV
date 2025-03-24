@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Regular 400',
     fontWeight: 'bold',
     position: 'absolute',
-    top: 789, // Adjust this value as needed
+    top: 775, // Adjust this value as needed
     left: '67%',
     transform: [{ translateX: -50 }],
   },
