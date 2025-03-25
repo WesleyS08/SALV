@@ -13,7 +13,7 @@ import {  onAuthStateChanged, User } from 'firebase/auth';
 import { getAuth, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 
 
-const fontSizes = [12, 14, 16, 18, 20, 22, 24];
+const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28];
 
 const Conta = () => {
     const navigation = useNavigation();
@@ -28,6 +28,13 @@ const Conta = () => {
     const defaultFontSize = 16;
     const defaultDarkMode = false;
     const [darkMode, setDarkMode] = useState(defaultDarkMode);
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [passwordError, setPasswordError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const togglePasswordVisibility = () => setShowPassword(!showPassword);
+
 
     useEffect(() => {
         const auth = getAuth();
@@ -74,15 +81,6 @@ const Conta = () => {
         }
     };
 
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmNewPassword, setConfirmNewPassword] = useState('');
-    const [passwordError, setPasswordError] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-
-    const togglePasswordVisibility = () => setShowPassword(!showPassword);
-
-
     // Lógica de imagem
     const handleImageSelection = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -128,8 +126,6 @@ const Conta = () => {
     };
     const [loadingPassword, setLoadingPassword] = useState(false);
 
-
-
     // Função para alterar a senha
     const handleChangePassword = async () => {
         if (!user) {
@@ -171,9 +167,7 @@ const Conta = () => {
         setLoadingPassword(false); // Remove o carregamento
     };
     
-    
-
-
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-
 if (loading) {
     return (
         <View style={styles.container}>
@@ -294,7 +288,7 @@ return (
                                 placeholder="Senha Atual"
                                 value={currentPassword}
                                 onChangeText={setCurrentPassword}
-                                secureTextEntry={!showPassword} // Alterna entre mostrar e ocultar a senha
+                                secureTextEntry={!showPassword} 
                             />
                             <TextInput
                                 style={styles.input}
@@ -507,7 +501,3 @@ const styles = StyleSheet.create({
 });
 
 export default Conta;
-function setUserData(updatedUserData: any) {
-    throw new Error('Function not implemented.');
-}
-
