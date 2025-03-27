@@ -143,12 +143,15 @@ def on_message(client, userdata, msg):
 
 def salvar_link_ngrok(url):
     try:
-        response = supabase.table('ngrok_links').upsert({"url": url}, on_conflict=["url"]).execute()
+        response = supabase.table('ngrok_links').upsert(
+            {"id": 1, "url": url},  
+            on_conflict=["id"]      
+        ).execute()
         
-        if response.data:  # Verifica se a resposta contém dados
+        if response.data:
             print("Link ngrok salvo/atualizado no Supabase com sucesso")
         else:
-            print("Erro ao salvar link no Supabase: Sem dados na resposta", response)
+            print("Erro ao salvar link: Resposta vazia do Supabase")
     except Exception as e:
         print(f"Erro ao conectar ao Supabase: {e}")
 
@@ -175,7 +178,7 @@ def salvar_informacoes_filmagem(inicio, fim, duracao, url_video):
             'fim': fim,
             'duracao': duracao,
             'url_video': url_video
-        }]).execute()  # Corrigido
+        }]).execute() 
         if response.status_code == 200:
             print("Informações de filmagem salvas com sucesso no supabase")
         else:
@@ -204,7 +207,7 @@ flask_thread = threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port
 flask_thread.start()
 
 # Iniciar o ngrok
-ngrok_thread = threading.Thread(target=start_ngrok)  # Corrigido
+ngrok_thread = threading.Thread(target=start_ngrok)  
 ngrok_thread.start()
 
 client.loop_forever()
