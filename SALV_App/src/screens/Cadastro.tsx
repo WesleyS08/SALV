@@ -5,7 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getAuth, createUserWithEmailAndPassword, fetchSignInMethodsForEmail } from 'firebase/auth';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
-import { app } from '../../firebase'; // Importa a instância do Firebase App inicializada
+import { app } from '../DB/firebase'; // Importa a instância do Firebase App inicializada
 import { useNavigation } from '@react-navigation/native';
 
 const Cadastro = () => {

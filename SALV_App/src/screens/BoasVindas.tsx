@@ -206,8 +206,8 @@ export default function Index() {
     <Particle
       key={i}
       size={Math.random() * 5 + 3}
-      left={`${Math.random() * 100}%`}
-      top={`${Math.random() * 100}%`}
+      left={Math.random() * 500}
+      top={Math.random() * 900}
       duration={Math.random() * 3000 + 2000}
       delay={Math.random() * 2000}
     />

@@ -1,4 +1,4 @@
-import supabase from '../../supabase';
+import supabase from './supabase';
 
 export const dbFunctionInsertPhotoProfile = async (userId: string, imageBase64: string, nome: string) => {
     try {

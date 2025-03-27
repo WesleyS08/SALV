@@ -1,223 +1,314 @@
-import React, { useState } from 'react';
-import { Text, ImageBackground, StyleSheet, View, Image, TouchableOpacity, Modal } from "react-native";
+import React, { useState, useEffect } from 'react';
+import { Text, StyleSheet, View, Image, TouchableOpacity, SafeAreaView, ScrollView, Animated, Easing, Modal } from "react-native";
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
+
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  contentContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 30,
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    width: '100%',
-    height: '100%',
-  },
-  welcomeText: {
-    color: 'black',
-    fontSize: 24,
-    marginTop: -550, // Adjust margin to move closer to the logo
-    fontWeight: 'bold',
-    left: -60,
-    top: 40,
-  },
-  welcomeText1: {
-    color: 'black',
-    fontSize: 11,
-    marginTop: 10, // Adjust margin if needed
-    position: 'absolute',
-    top: 570,
-    left: 15,
-    fontFamily: 'Regular 400',
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  welcomeText2: {
-    color: 'black',
-    fontSize: 15,
-    marginTop: 10, // Adjust margin if needed
-    position: 'absolute',
-    top: 250, // Ajuste a posição conforme necessário
-    left: '-2%',
-    transform: [{ translateX: -50 }],
-    textAlign: 'center',
-    fontFamily: 'Regular 400',
-    fontWeight: '700',
-    flexWrap: 'wrap', // Adiciona quebra de linha
-    lineHeight: 20,
-    width: '100%', // Garante que o texto ocupe toda a largura disponível
-  },
-  welcomeText3: {
-    color: 'black',
-    fontSize: 19,
-    marginTop: 10, // Adjust margin if needed
-    position: 'absolute',
-    top: 200,
-    left: 30,
-    fontFamily: 'Regular 400',
-    fontWeight: 'bold',
-  },
-  welcomeText4: {
-    color: 'black',
-    fontSize: 22,
-    marginTop: 10, // Adjust margin if needed
-    position: 'absolute',
-    top: 350,
-    left: '32%',
-    fontFamily: 'Regular 400',
-    fontWeight: 'bold',
-  },
-  welcomeText5: {
-    color: 'black',
-    fontSize: 14,
-    marginTop: 10, // Adjust margin if needed
-    position: 'absolute',
-    top: 390,
-    left: '20%',
-    transform: [{ translateX: -50 }],
-    textAlign: 'center', // Center the text
-    fontFamily: 'Regular 400',
-  },
-  welcomeText6: {
-    color: 'black',
-    fontSize: 12,
-    marginTop: 10, // Adjust margin if needed
-    textAlign: 'center', // Center the text
-    fontFamily: 'Regular 400',
-    fontWeight: 'bold',
-    left: '10%',
-  },
-  welcomeText7: {
-    color: 'black',
-    fontSize: 12,
-    marginTop: 10, // Adjust margin if needed
-    textAlign: 'center', // Center the text
-    fontFamily: 'Regular 400',
-    fontWeight: 'bold',
-    position: 'absolute',
-    top: 775, // Adjust this value as needed
-    left: '67%',
-    transform: [{ translateX: -50 }],
-  },
-  linkText: {
-    color: 'blue',
-    textDecorationLine: 'underline',
-    fontSize: 12,
-  },
-  linkText1: {
-    color: 'blue',
-    textDecorationLine: 'underline',
-    fontSize: 12,
-    top: 20,
-    left:'-200%',
   },
   logo: {
-    width: 72, // Ajuste o tamanho conforme necessário
-    height: 72, // Ajuste o tamanho conforme necessário
-    borderRadius: 20, // Ajuste o tamanho conforme necessário
-    position: 'absolute',
-    top: 120,
-    left: '20%',
-    transform: [{ translateX: -50 }],
+    width: 150,
+    height: 150,
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginTop: 40,
+    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  retangulo: {
-    width: 32, // Ajuste o tamanho conforme necessário
-    height: 4, // Ajuste o tamanho conforme necessário
-    borderRadius: 8, // Ajuste o tamanho conforme necessário
-    position: 'absolute',
-    top: '41%',
-    left: '48%',
-    transform: [{ translateX: -16 }, { translateY: -2 }], // Centraliza o retângulo
+  welcomeText: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  subtitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    lineHeight: 26,
+    textAlign: 'center',
+    marginBottom: 24,
+    fontFamily: 'Rubik',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  sectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  sectionText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 32,
+    fontFamily: 'Rubik',
+    textShadowColor: 'rgba(0,0,0,0.1)',
+    lineHeight: 20,
   },
   buttonContainer: {
-    position: 'absolute',
-    bottom: 30, // Ajuste a posição conforme necessário
-    left: '20%',
-    transform: [{ translateX: -50 }],
-    borderRadius: 14, // Ajuste o tamanho conforme necessário
+    width: '100%',
+    height: 54,
     backgroundColor: '#04C6AE',
-    width: 328, // Ajuste o tamanho conforme necessário
-    height: 54, // Ajuste o tamanho conforme necessário
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    top: 430,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    marginBottom: 16,
   },
-  buttonContainer1: {
-    position: 'absolute',
-    bottom: 30, // Ajuste a posição conforme necessário
-    left: '20%',
-    transform: [{ translateX: -50 }],
-    borderRadius: 14, // Ajuste o tamanho conforme necessário
-    width: 328, // Ajuste o tamanho conforme necessário
-    height: 54, // Ajuste o tamanho conforme necessário
+  secondaryButtonContainer: {
+    width: '100%',
+    height: 54,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    top: 500,
-    borderColor: "rgba(215, 215, 215, 1.0)",
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderWidth: 1,
-    borderStyle: 'solid',
+    borderColor: 'rgba(255,255,255,0.3)',
+    marginBottom: 24,
   },
   buttonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  buttonText1: {
-    color: 'black',
+  secondaryButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  footerText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  linkText: {
+    color: '#FFFFFF',
+    textDecorationLine: 'underline',
     fontWeight: 'bold',
   },
   modalContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   modalView: {
-    width: '80%',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    width: '85%',
+    backgroundColor: 'rgba(30,30,30,0.95)',
+    borderRadius: 16,
+    padding: 24,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  closeButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  modalText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    lineHeight: 22,
+    marginBottom: 24,
   },
   downloadButton: {
-    marginTop: 20,
-    padding: 10,
+    paddingVertical: 12,
     backgroundColor: '#04C6AE',
-    borderRadius: 5,
+    borderRadius: 8,
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   downloadButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-    marginLeft: 10,
+    marginLeft: 8,
+  },
+  particle: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 50,
   },
 });
+
+interface ParticleProps {
+  size: number;
+  left: number;
+  top: number;
+  duration: number;
+  delay: number;
+}
+
+const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay }) => {
+  const animValue = new Animated.Value(0);
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(animValue, {
+          toValue: 1,
+          duration,
+          delay,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(animValue, {
+          toValue: 0,
+          duration,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, []);
+
+  const translateY = animValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -20],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.particle,
+        {
+          width: size,
+          height: size,
+          left,
+          top,
+          transform: [{ translateY }],
+          opacity: animValue.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange: [0.6, 1, 0.6],
+          }),
+        },
+      ]}
+    />
+  );
+};
 
 export default function Principal() {
   const navigation = useNavigation();
   const [modalVisible, setModalVisible] = useState(false);
   const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const colorAnim = new Animated.Value(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const handleDownload = async (text, fileName) => {
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(colorAnim, {
+        toValue: 1,
+        duration: 15000,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      })
+    ).start();
+  }, []);
+
+  const color1 = colorAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#2B5876', '#4E4376', '#2B5876'],
+  });
+
+  const color2 = colorAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#4E4376', '#2B5876', '#4E4376'],
+  });
+
+  const handleBiometricLogin = async () => {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      if (!hasHardware) {
+        setToastMessage('Seu dispositivo não suporta autenticação biométrica.');
+        return;
+      }
+
+      const isBiometricAvailable = await LocalAuthentication.isEnrolledAsync();
+      if (!isBiometricAvailable) {
+        setToastMessage('Nenhum método biométrico foi configurado no dispositivo.');
+        return;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Confirme sua identidade',
+        fallbackLabel: 'Use sua senha',
+        cancelLabel: 'Cancelar',
+      });
+
+      if (result.success) {
+        setToastMessage('Usuário logado com sucesso! 🎉');
+        navigation.navigate('Home');
+      } else {
+        setToastMessage('Erro: Autenticação biométrica falhou.');
+      }
+    } catch (error: any) {
+      console.error('Erro no login biométrico:', error);
+      setToastMessage('Ocorreu um erro ao realizar o login biométrico.');
+    }
+  };
+
+  const particles = Array.from({ length: 15 }).map((_, i) => (
+    <Particle
+      key={i}
+      size={Math.random() * 5 + 3}
+      left={Math.random() * 500}
+      top={Math.random() * 900}
+      duration={Math.random() * 3000 + 2000}
+      delay={Math.random() * 2000}
+    />
+  ));
+
+  const handleDownload = async (text: string, fileName: string) => {
     try {
       const fileUri = FileSystem.documentDirectory + fileName;
       await FileSystem.writeAsStringAsync(fileUri, text);
@@ -230,126 +321,115 @@ export default function Principal() {
     }
   };
 
-  const termsText = `
-    Termos e Condições:
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-    Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-    Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
-    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-    Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-  `;
-
-  const privacyText = `
-    Política de Privacidade:
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-    Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-    Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
-    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-    Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-  `;
+  const termsText = `Termos e Condições do SALV...`;
+  const privacyText = `Lorem ipsum...`;
 
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={require('../images/background.png')}
+      <AnimatedLinearGradient
+        colors={[color1, color2]}
         style={styles.background}
-      >
-        <Image
-          source={require('../images/Rectangle 9.png')}
-          style={styles.retangulo} 
-        />
-        <Image
-          source={require('../images/logo.png')}
-          style={styles.logo} // Apply the logo style here
-        />
-        <Text style={styles.welcomeText}>SALV</Text>
-        <Text style={styles.welcomeText2}>
-          Segurança inteligente para laboratórios.{"\n"}
-          Monitore, proteja e tenha controle total!
-        </Text>
-        <Text style={styles.welcomeText3}>Sistema de Alerta Laboratorial com Visão</Text>
-        <Text style={styles.welcomeText4}>Login ou Cadastro</Text>
-        <Text style={styles.welcomeText5}>Selecione sua maneira para se cadastrar ou logar no aplicativo.</Text>
-        <View style={{ alignItems: 'center', marginTop: 20, top: 600, left: -10 }}>
-            <Text style={styles.welcomeText6}>
-                Se você estiver criando uma nova conta,{' '}
-                <TouchableOpacity onPress={() => setModalVisible(true)}>
-                <Text style={styles.linkText}>Termos e Condições</Text>
-                </TouchableOpacity>
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      {particles}
+      
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.contentContainer}>
+          <Image source={require('../images/logo.png')} style={styles.logo} />
+          <Text style={styles.welcomeText}>SALV</Text>
+          <Text style={styles.subtitle}>
+            Segurança inteligente para laboratórios
+          </Text>
+          
+          <Text style={styles.sectionTitle}>Sistema de Alerta Laboratorial com Visão</Text>
+          <Text style={styles.sectionText}>Login ou Cadastro</Text>
+          <Text style={styles.sectionText}>
+            Selecione sua maneira para se cadastrar ou logar no aplicativo
+          </Text>
 
-                <TouchableOpacity onPress={() => setPrivacyModalVisible(true)}>
-                    
-                <Text style={styles.linkText1}> {'\n'} Política de Privacidade</Text>
-                </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.buttonContainer}
+            onPress={() => navigation.navigate('Login')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>Continuar com Email</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButtonContainer}
+            onPress={handleBiometricLogin}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.secondaryButtonText}>Continuar com Biometria</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.footerText}>
+            Ao criar uma conta, você concorda com os {' '}
+            <Text style={styles.linkText} onPress={() => setModalVisible(true)}>
+              Termos e Condições
+            </Text>{' '}
+            e a {' '}
+            <Text style={styles.linkText} onPress={() => setPrivacyModalVisible(true)}>
+              Política de Privacidade
             </Text>
-            
-        </View>
-        <Text style={styles.welcomeText7}>
-               serão aplicados.
-        </Text>
-        <TouchableOpacity
-          style={styles.buttonContainer}
-          onPress={() => navigation.navigate('Login')}
-        >
-          <Text style={styles.buttonText}>Continuar com Email</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.buttonContainer1}
-          onPress={() => navigation.navigate('LoginBiometria')}
-        >
-          <Text style={styles.buttonText1}>Continuar com Biometria</Text>
-        </TouchableOpacity>
-      </ImageBackground>
+          </Text>
+        </ScrollView>
+      </SafeAreaView>
 
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContent}>
           <View style={styles.modalView}>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
-            >
-              <Ionicons name="close" size={24} color="black" />
-            </TouchableOpacity>
-            <Text>Termos e Condições...</Text>
-            <Text>{termsText}</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Termos e Condições</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              <Text style={styles.modalText}>{termsText}</Text>
+            </ScrollView>
             <TouchableOpacity
               style={styles.downloadButton}
               onPress={() => handleDownload(termsText, 'termos_condicoes.txt')}
+              activeOpacity={0.8}
             >
-              <Ionicons name="download" size={24} color="white" />
-              <Text style={styles.downloadButtonText}>Baixar</Text>
+              <Ionicons name="download" size={20} color="white" />
+              <Text style={styles.downloadButtonText}>Baixar Termos</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={privacyModalVisible}
         onRequestClose={() => setPrivacyModalVisible(false)}
       >
         <View style={styles.modalContent}>
           <View style={styles.modalView}>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setPrivacyModalVisible(false)}
-            >
-              <Ionicons name="close" size={24} color="black" />
-            </TouchableOpacity>
-            <Text>Política de Privacidade...</Text>
-            <Text>{privacyText}</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Política de Privacidade</Text>
+              <TouchableOpacity onPress={() => setPrivacyModalVisible(false)}>
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              <Text style={styles.modalText}>{privacyText}</Text>
+            </ScrollView>
             <TouchableOpacity
               style={styles.downloadButton}
               onPress={() => handleDownload(privacyText, 'politica_privacidade.txt')}
+              activeOpacity={0.8}
             >
-              <Ionicons name="download" size={24} color="white" />
-              <Text style={styles.downloadButtonText}>Baixar</Text>
+              <Ionicons name="download" size={20} color="white" />
+              <Text style={styles.downloadButtonText}>Baixar Política</Text>
             </TouchableOpacity>
           </View>
         </View>

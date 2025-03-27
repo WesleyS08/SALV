@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useFontSize } from '../Global/FontSizeContext';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { signOut } from 'firebase/auth';
-import { auth } from '../../firebase';
+import { auth } from '../DB/firebase';
 import * as ImagePicker from 'expo-image-picker';
 import CustomToast from '../components/CustomToast';
 import { logError } from '../components/logger';
