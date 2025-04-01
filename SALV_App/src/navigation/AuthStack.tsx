@@ -28,7 +28,7 @@ const AuthStack: React.FC = () => {
       <Stack.Screen name="Autenticacao" component={Autenticacao} options={{ headerShown: false }} />
       <Stack.Screen name="Login" component={Login} options={{ headerShown: false }} />
       <Stack.Screen name="Cadastro" component={Cadastro} />
-      <Stack.Screen name="EsqueciSenha" component={EsqueciSenha} />
+      <Stack.Screen name="EsqueciSenha" component={EsqueciSenha} options={{ headerShown: false }} />
       <Stack.Screen name="Home" component={AppTabs} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
