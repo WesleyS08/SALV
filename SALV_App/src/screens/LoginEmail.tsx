@@ -1,44 +1,140 @@
-import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, Text, Modal, TouchableOpacity, ImageBackground, ActivityIndicator } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  View, 
+  TextInput, 
+  Text, 
+  Modal, 
+  TouchableOpacity, 
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  Animated,
+  Easing,
+  ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { app } from '../DB/firebase'; // Importa a instância do Firebase App inicializada
+import { app } from '../DB/firebase';
+import { LinearGradient } from 'expo-linear-gradient';
+import CustomToast from '../components/CustomToast';
 
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
-
-const Login = ({ navigation }: any) => {
+const Login = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+  const colorAnim = useRef(new Animated.Value(0)).current;
 
-  const validateEmail = (email: string) => {
+  // Animação do gradiente
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(colorAnim, {
+        toValue: 1,
+        duration: 15000,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      })
+    ).start();
+  }, []);
+
+  const color1 = colorAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#2B5876', '#4E4376', '#2B5876'],
+  });
+
+  const color2 = colorAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#4E4376', '#2B5876', '#4E4376'],
+  });
+
+  // Componente de partículas
+  const Particle = ({ size, left, top, duration, delay }) => {
+    const animValue = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(animValue, {
+            toValue: 1,
+            duration,
+            delay,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(animValue, {
+            toValue: 0,
+            duration,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animation.start();
+      return () => animation.stop();
+    }, []);
+
+    const translateY = animValue.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, -20],
+    });
+
+    return (
+      <Animated.View
+        style={[
+          styles.particle,
+          {
+            width: size,
+            height: size,
+            left,
+            top,
+            transform: [{ translateY }],
+            opacity: animValue.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [0.6, 1, 0.6],
+            }),
+          },
+        ]}
+      />
+    );
+  };
+
+  const particles = Array.from({ length: 8 }).map((_, i) => (
+    <Particle
+      key={i}
+      size={Math.random() * 5 + 3}
+      left={Math.random() * 500}
+      top={Math.random() * 900}
+      duration={Math.random() * 3000 + 2000}
+      delay={Math.random() * 2000}
+    />
+  ));
+
+  const validateEmail = (email) => {
     const re = /\S+@\S+\.\S+/;
     return re.test(email);
   };
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setModalMessage('Email e senha são obrigatórios.');
-      setModalVisible(true);
+      setToastMessage('Email e senha são obrigatórios');
       return;
     }
 
     if (!validateEmail(email)) {
-      setModalMessage('Formato de email inválido.');
-      setModalVisible(true);
+      setToastMessage('Formato de email inválido');
       return;
     }
 
     setLoading(true);
 
     try {
-      // Tenta fazer login
-      const auth = getAuth(app); // Usa a instância do Firebase App inicializada
+      const auth = getAuth(app);
       const loginResponse = await signInWithEmailAndPassword(auth, email, password);
       const uid = loginResponse.user.uid;
 
@@ -47,142 +143,173 @@ const Login = ({ navigation }: any) => {
         email,
       };
 
-      setLoading(false);
-      navigation.navigate('Home', { user: userData });  // Navega para a tela Home após login
+      navigation.navigate('Home', { user: userData });
     } catch (loginError) {
-      setLoading(false);
-      if (loginError.code === 'auth/invalid-credential') {
-        setModalMessage('Credenciais inválidas. Por favor, verifique seu email e senha.');
-      } else {
-        setModalMessage(loginError.message);
+      let errorMessage = 'Erro ao fazer login';
+      
+      switch (loginError.code) {
+        case 'auth/invalid-credential':
+          errorMessage = 'Credenciais inválidas';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'Usuário não encontrado';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Senha incorreta';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Muitas tentativas. Tente mais tarde';
+          break;
+        default:
+          errorMessage = loginError.message || 'Erro desconhecido';
       }
-      setModalVisible(true);
+      
+      setModalMessage(errorMessage);
+      setErrorModalVisible(true);
+    } finally {
+      setLoading(false);
     }
   };
-  const handleDownload = async (text, fileName) => {
-    try {
-      const fileUri = FileSystem.documentDirectory + fileName;
-      await FileSystem.writeAsStringAsync(fileUri, text);
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'text/plain',
-        dialogTitle: `Baixar ${fileName}`,
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const termsText = `
-    Termos e Condições:
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-    Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-    Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
-    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-    Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-  `;
-
-  const privacyText = `
-    Política de Privacidade:
-    Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-    Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-    Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. 
-    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-    Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-  `;
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <ImageBackground
-          source={require('../images/seta.png')}
-          style={styles.background} 
+      {toastMessage && (
+        <CustomToast
+          message={toastMessage}
+          duration={5000}
+          onClose={() => setToastMessage(null)}
         />
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.voltar}>Voltar</Text>
-      </TouchableOpacity>
+      )}
       
-      <ImageBackground
-        source={require('../images/email.png')}
-        style={styles.email}
+      <AnimatedLinearGradient
+        colors={[color1, color2]}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       />
-      <Text style={styles.title}>Digite seu E-mail.</Text>
-      <Text style={styles.title1}>Insira o e-mail associado à sua conta.</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="***********"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      <Text style={styles.title2}>
-        Esqueceu sua senha?{' '}
-        <TouchableOpacity onPress={() => navigation.navigate('EsqueciSenha')}>
-          <Text style={styles.linkText}>Senha</Text>
-        </TouchableOpacity>
-      </Text>
-      <Text style={styles.title3}>
-        Não tem uma conta?{' '}
-        <TouchableOpacity onPress={() => navigation.navigate('Cadastro')}>
-          <Text style={styles.linkText1}>Cadastre-se</Text>
-        </TouchableOpacity>
-      </Text>
-      <TouchableOpacity
-        style={styles.buttonContainer}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <Text style={styles.buttonText}>Continuar com Email</Text>
-        )}
-      </TouchableOpacity>
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalView}>
+      {particles}
+
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView 
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <TouchableOpacity 
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="white" />
+            <Text style={styles.backText}>Voltar</Text>
+          </TouchableOpacity>
+
+          <View style={styles.content}>
+            <Ionicons 
+              name="mail-open" 
+              size={80} 
+              color="rgba(255,255,255,0.9)" 
+              style={styles.icon}
+            />
+            
+            <Text style={styles.title}>Bem-vindo de volta</Text>
+            
+            <Text style={styles.subtitle}>
+              Digite suas credenciais para acessar sua conta
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Seu e-mail"
+                placeholderTextColor="rgba(255,255,255,0.7)"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+                autoCorrect={false}
+                spellCheck={false}
+              />
+              <Ionicons 
+                name="mail" 
+                size={20} 
+                color="rgba(255,255,255,0.7)" 
+                style={styles.inputIcon}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Sua senha"
+                placeholderTextColor="rgba(255,255,255,0.7)"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-off" : "eye"} 
+                  size={20} 
+                  color="rgba(255,255,255,0.7)" 
+                />
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setModalVisible(false)}
+              onPress={() => navigation.navigate('EsqueciSenha')}
+              style={styles.forgotPassword}
             >
-              <Ionicons name="close" size={24} color="black" />
+              <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
             </TouchableOpacity>
-            <Text style={styles.modalText}>{modalMessage}</Text>
+
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <View style={styles.buttonContent}>
+                  <Text style={styles.buttonText}>Entrar</Text>
+                  <Ionicons name="arrow-forward" size={20} color="white" />
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.registerContainer}>
+              <Text style={styles.registerText}>Não tem uma conta?</Text>
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('Cadastro')}
+              >
+                <Text style={styles.registerLink}> Cadastre-se</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </SafeAreaView>
+
+      {/* Modal de Erro */}
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
-        visible={privacyModalVisible}
-        onRequestClose={() => setPrivacyModalVisible(false)}
+        visible={errorModalVisible}
+        onRequestClose={() => setErrorModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalView}>
+            <Ionicons name="close-circle" size={50} color="#FF6B6B" />
+            <Text style={styles.modalTitle}>Ops!</Text>
+            <Text style={styles.modalText}>{modalMessage}</Text>
             <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setPrivacyModalVisible(false)}
+              style={[styles.modalButton, styles.modalErrorButton]}
+              onPress={() => setErrorModalVisible(false)}
+              activeOpacity={0.8}
             >
-              <Ionicons name="close" size={24} color="black" />
-            </TouchableOpacity>
-            <Text style={styles.modalText}>{privacyText}</Text>
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => handleDownload(privacyText, 'politica_privacidade.txt')}
-            >
-              <Ionicons name="download" size={24} color="white" />
-              <Text style={styles.downloadButtonText}>Baixar</Text>
+              <Text style={styles.modalButtonText}>Entendi</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -192,190 +319,187 @@ const Login = ({ navigation }: any) => {
 };
 
 const styles = StyleSheet.create({
-  modalContent: {
+  container: {
+    flex: 1,
+  },
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  contentContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    flexGrow: 1,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  backText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 8,
+    fontWeight: '600',
+  },
+  content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingBottom: 40,
   },
-  modalView: {
-    width: '80%',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
+  icon: {
+    marginBottom: 30,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    marginBottom: 40,
+    paddingHorizontal: 20,
+    lineHeight: 24,
+  },
+  inputContainer: {
+    width: '100%',
+    position: 'relative',
+    marginBottom: 20,
+  },
+  input: {
+    width: '100%',
+    height: 56,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 14,
+    paddingLeft: 50,
+    paddingRight: 50,
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+  inputIcon: {
+    position: 'absolute',
+    left: 16,
+    top: 18,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 16,
+    top: 18,
+    padding: 4,
+  },
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginBottom: 30,
+  },
+  forgotPasswordText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  button: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#04C6AE',
+    borderRadius: 14,
+    justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    marginTop: 10,
   },
-  closeButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
+  buttonDisabled: {
+    backgroundColor: 'rgba(4,198,174,0.6)',
   },
-  downloadButton: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#04C6AE',
-    borderRadius: 5,
+  buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  downloadButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  buttonContainer: {
-    position: 'absolute',
-    bottom: 30, // Ajuste a posição conforme necessário
-    transform: [{ translateX: -50 }],
-    borderRadius: 14, // Ajuste o tamanho conforme necessário
-    backgroundColor: '#04C6AE',
-    width: 328, // Ajuste o tamanho conforme necessário
-    height: 54, // Ajuste o tamanho conforme necessário
-    justifyContent: 'center',
-    alignItems: 'center',
-    top: 640,
-    left: 80,
-  },
   buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginRight: 8,
   },
-  container: {
-    flex: 1,
-    justifyContent: 'center',
+  registerContainer: {
+    flexDirection: 'row',
+    marginTop: 30,
     alignItems: 'center',
-    padding: 20,
   },
-  background: {
-    width: 24,
-    height: 24,
-    left: -160,
-    top: -100,
-  },
-  welcomeText1: {
-    width: 328,
-    height: 40,
-    fontFamily: "Roboto",
-    fontSize: 14,
-    fontWeight: "700",
-    fontStyle: "normal",
-    lineHeight: 20,
-    textAlign: "center",
-    color: "#464242",
-    top: -20,
-    left: -1,
-  },
-  voltar: {
-    width: 206,
-    height: 23,
-    fontFamily: "Roboto",
-    fontSize: 17,
-    fontWeight: "700",
-    fontStyle: "normal",
-    lineHeight: 23,
-    color: "#000000",
-    top: -120,
-    marginBottom: 20,
-    left: -38,
-  },
-  email: {
-    width: 91,
-    height: 91,
-    top: -100,
-    left: -130,
-  },
-  title: {
-    width: 206,
-    height: 23,
-    fontFamily: "Regular 400",
-    fontSize: 24,
-    fontWeight: "700",
-    fontStyle: "normal",
-    lineHeight: 23,
-    color: "#000000",
-    top: -80,
-    marginBottom: 20,
-    left: -60,
-  },
-  title2: {
-    width: 206,
-    height: 23,
-    fontFamily: "Regular 400",
+  registerText: {
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 15,
-    fontWeight: "300",
-    fontStyle: "normal",
-    lineHeight: 23,
-    color: "#797979",
-    top: -60,
-    marginBottom: 20,
-    left: -60,
   },
-  linkText: {
-    color: 'blue',
-  },
-  title3: {
-    width: 206,
-    height: 23,
-    fontFamily: "Regular 400",
+  registerLink: {
+    color: '#FFFFFF',
+    fontWeight: '600',
     fontSize: 15,
-    fontWeight: "300",
-    fontStyle: "normal",
-    lineHeight: 23,
-    color: "#797979",
-    top: 160,
-    marginBottom: 20,
-    left: 10,
-  },
-  linkText1: {
-    color: 'blue',
-  },
-  title1: {
-    width: 336,
-    height: 20,
-    fontFamily: "Roboto",
-    fontSize: 15,
-    fontWeight: "400",
-    fontStyle: "normal",
-    lineHeight: 20,
-    color: "#000000",
-    left: 4,
-    top: -90,
-  },
-  input: {
-    width: 328,
-    height: 54,
-    borderColor: '#04C6AE',
-    borderWidth: 2,
-    borderRadius: 13,
-    marginBottom: 10,
-    paddingLeft: 10,
-    top: -60,
+    textDecorationLine: 'underline',
   },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  modalView: {
+    width: '85%',
+    backgroundColor: 'rgba(30,30,30,0.95)',
+    borderRadius: 16,
+    padding: 25,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginVertical: 15,
+    color: '#FFFFFF',
   },
   modalText: {
     fontSize: 16,
-    marginBottom: 20,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 22,
   },
-  closeButtonText: {
-    color: 'white',
+  modalButton: {
+    width: '100%',
+    padding: 14,
+    backgroundColor: '#04C6AE',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalErrorButton: {
+    backgroundColor: '#FF6B6B',
+  },
+  modalButtonText: {
+    color: '#FFF',
     fontSize: 16,
+    fontWeight: '600',
   },
-
+  particle: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    borderRadius: 50,
+  },
 });
 
 export default Login;
