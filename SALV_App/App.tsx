@@ -8,6 +8,7 @@ import React, { useEffect } from 'react';
 import * as NavigationBar from 'expo-navigation-bar';
 import { DarkModeProvider } from './src/Global/DarkModeContext';
 import { FontSizeProvider } from './src/Global/FontSizeContext';
+import { AuthProvider } from './src/contexts/AuthContext';
 
 export default function App() {
   useEffect(() => {
@@ -17,10 +18,12 @@ export default function App() {
   return (
     <DarkModeProvider>
       <FontSizeProvider>
-        <NavigationContainer>
-          <StatusBar hidden={true} />
-          <AuthStack />
-        </NavigationContainer>
+        <AuthProvider>
+          <NavigationContainer>
+            <StatusBar hidden={true} />
+            <AuthStack />
+          </NavigationContainer>
+        </AuthProvider>
       </FontSizeProvider>
     </DarkModeProvider>
   );

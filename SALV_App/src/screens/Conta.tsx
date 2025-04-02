@@ -41,16 +41,39 @@ const Conta = () => {
     const [passwordError, setPasswordError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const togglePasswordVisibility = () => setShowPassword(!showPassword);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    
 
+    const verifyAuth = async (): Promise<User> => {
+        const auth = getAuth();
+        await auth.currentUser?.reload();
+        if (!auth.currentUser?.uid) {
+            await signOut(auth);
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+            });
+            throw new Error('Sessão expirada. Por favor, faça login novamente');
+        }
+        return auth.currentUser;
+    };
 
     useEffect(() => {
         const auth = getAuth();
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
             setUser(firebaseUser);
+            setIsAuthenticated(!!firebaseUser?.uid);
             setLoading(false);
+            
+            if (!firebaseUser) {
+                navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Login' }],
+                });
+            }
         });
         return () => unsubscribe();
-    }, []);
+    }, [navigation]);
 
 
     // Funções auxiliares
@@ -123,126 +146,93 @@ const Conta = () => {
         }
     };
 
-    const handleTakePhoto = async () => {
-        try {
-            const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-            if (!permissionResult.granted) {
-                setToastMessage('Permissão necessária. Permita o acesso à câmera para tirar uma foto');
-                return;
-            }
-
-            const result = await ImagePicker.launchCameraAsync({
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 1,
-                base64: true,
-            });
-
-            if (!result.canceled && result.assets && result.assets.length > 0) {
-                await handleImageResult(result);
-            } else {
-                setToastMessage('Captura de foto cancelada.');
-            }
-        } catch (error) {
-            console.error('Error taking photo:', error);
-            setToastMessage('Erro ao capturar foto com a câmera.');
-        }
-    };
-
     const handleImageResult = async (result: ImagePicker.ImagePickerResult) => {
         try {
-            // Check if image data exists
-            if (result.canceled || !result.assets || result.assets.length === 0) {
-                throw new Error('No image selected or operation canceled');
+            if (result.canceled || !result.assets?.length) {
+                throw new Error('Nenhuma imagem selecionada');
             }
 
             const imageBase64 = result.assets[0].base64;
             if (!imageBase64) {
-                throw new Error('Image data is missing');
+                throw new Error('Dados da imagem ausentes');
             }
 
-            // Validate user information
-            if (!user?.uid) {
-                throw new Error('User UID is missing - please log in again');
-            }
+            const currentUser = await verifyAuth();
 
             if (!userData?.nome) {
-                throw new Error('User name is missing - please complete your profile');
+                throw new Error('Complete seu perfil antes de adicionar foto');
             }
 
-            // Upload the image
-            await dbFunctionInsertPhotoProfile(user.uid, imageBase64, userData.nome);
-            setToastMessage('Foto de perfil atualizada com sucesso!');
-
+            await dbFunctionInsertPhotoProfile(currentUser.uid, imageBase64, userData.nome);
+            setToastMessage('Foto atualizada com sucesso!');
         } catch (error) {
-            if (error instanceof Error) {
-                console.error("Erro ao sair: ", error.message);
-                setToastMessage(error.message);
-            } else {
-                console.error("Erro desconhecido ao sair: ", error);
-                setToastMessage("Ocorreu um erro desconhecido");
-            }
+            const errorMessage = error instanceof Error ? error.message : 'Erro ao processar imagem';
+            setToastMessage(errorMessage);
         } finally {
             setModalVisible(false);
         }
     };
 
-    // Função para alterar a senha
     const handleChangePassword = async () => {
-        if (!user || !user.email) {
-            setPasswordError('Erro: Usuário não autenticado ou sem email cadastrado.');
-            return;
-        }
-
-        if (newPassword !== confirmNewPassword) {
-            setPasswordError('As senhas não coincidem.');
-            return;
-        }
-
-        if (newPassword.length < 6) {
-            setPasswordError('A nova senha deve ter pelo menos 6 caracteres.');
-            return;
-        }
-
-        setLoadingPassword(true);
-
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, user.email, currentPassword);
-
-            if (userCredential.user) {
-                await updatePassword(userCredential.user, newPassword);
+            const currentUser = await verifyAuth();
+            
+            if (!currentUser.email) {
+                setPasswordError('Email do usuário não encontrado');
+                return;
             }
 
+            if (newPassword !== confirmNewPassword) {
+                setPasswordError('Senhas não coincidem');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                setPasswordError('Senha precisa ter 6+ caracteres');
+                return;
+            }
+
+            setLoadingPassword(true);
+            
+            const userCredential = await signInWithEmailAndPassword(
+                auth, 
+                currentUser.email, 
+                currentPassword
+            );
+
+            await updatePassword(userCredential.user, newPassword);
+            
             setToastMessage('Senha alterada com sucesso!');
             setModalVisible(false);
             setCurrentPassword('');
             setNewPassword('');
             setConfirmNewPassword('');
             setPasswordError('');
+            
         } catch (error) {
-            console.error("Erro ao alterar a senha:", error);
-
+            let errorMessage = 'Erro ao alterar senha';
+            
             if (typeof error === 'object' && error !== null && 'code' in error) {
                 const firebaseError = error as { code: string; message: string };
-
+                
                 switch (firebaseError.code) {
                     case 'auth/wrong-password':
-                        setPasswordError('Senha atual incorreta.');
+                        errorMessage = 'Senha atual incorreta';
                         break;
                     case 'auth/too-many-requests':
-                        setPasswordError('Muitas tentativas. Tente novamente mais tarde.');
+                        errorMessage = 'Muitas tentativas. Tente mais tarde';
                         break;
                     default:
-                        setPasswordError('Erro ao alterar senha: ' + firebaseError.message);
+                        errorMessage = firebaseError.message || errorMessage;
                 }
-            } else {
-                setPasswordError('Erro desconhecido ao alterar senha.');
             }
+            
+            setPasswordError(errorMessage);
         } finally {
             setLoadingPassword(false);
         }
     };
-
+    
     // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-
     if (loading) {
         return (

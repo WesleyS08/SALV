@@ -1,18 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {   View,   TextInput,   Text,   Modal,   TouchableOpacity,   StyleSheet,  SafeAreaView,  ScrollView,  Animated,  Easing,  ActivityIndicator} from 'react-native';
+import { View, TextInput, Text, Modal, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, Animated, Easing, ActivityIndicator, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import * as SecureStore from 'expo-secure-store';
 import { app } from '../DB/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import CustomToast from '../components/CustomToast';
 import { NavigationProp } from '@react-navigation/native';
+import * as Crypto from 'expo-crypto';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
+
 interface LoginProps {
   navigation: NavigationProp<any>;
 }
 
 const Login: React.FC<LoginProps> = ({ navigation }) => {
+  // Estados
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +25,7 @@ const Login: React.FC<LoginProps> = ({ navigation }) => {
   const [modalMessage, setModalMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [enableBiometric, setEnableBiometric] = useState(false);
   const colorAnim = useRef(new Animated.Value(0)).current;
 
   // Animação do gradiente
@@ -45,15 +50,16 @@ const Login: React.FC<LoginProps> = ({ navigation }) => {
     outputRange: ['#4E4376', '#2B5876', '#4E4376'],
   });
 
-interface ParticleProps {
-  size: number;
-  left: number;
-  top: number;
-  duration: number;
-  delay: number;
-}
+  // Componente Particle
+  interface ParticleProps {
+    size: number;
+    left: number;
+    top: number;
+    duration: number;
+    delay: number;
+  }
 
-const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay }) => {
+  const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay }) => {
     const animValue = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -114,11 +120,36 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
     />
   ));
 
-  const validateEmail = (email:any) => {
+  // Função para criptografar dados
+  const encryptData = async (data: string): Promise<string> => {
+    const digest = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      data + new Date().getTime().toString()
+    );
+    return digest;
+  };
+
+  // Validação de email
+  const validateEmail = (email: string) => {
     const re = /\S+@\S+\.\S+/;
     return re.test(email);
   };
 
+  // Salvar credenciais para biometria
+  const saveCredentialsForBiometric = async (email: string, password: string) => {
+    try {
+      const credentials = JSON.stringify({
+        email,
+        password: await encryptData(password)
+      });
+      await SecureStore.setItemAsync('user_credentials', credentials);
+    } catch (error) {
+      console.error('Erro ao salvar credenciais:', error);
+      throw new Error('Falha ao salvar credenciais para biometria');
+    }
+  };
+
+  // Função principal de login
   const handleLogin = async () => {
     if (!email || !password) {
       setToastMessage('Email e senha são obrigatórios');
@@ -134,22 +165,31 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
 
     try {
       const auth = getAuth(app);
-      const loginResponse = await signInWithEmailAndPassword(auth, email, password);
-      const uid = loginResponse.user.uid;
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const { uid, email: userEmail } = userCredential.user;
 
-      const userData = {
-        id: uid,
-        email,
-      };
+      if (enableBiometric) {
+        try {
+          await saveCredentialsForBiometric(email, password);
+          setToastMessage('Login salvo para biometria!');
+        } catch (error) {
+          console.warn('Biometria não configurada:', error);
+        }
+      }
 
-      navigation.navigate('Home', { user: userData });
-    } catch (loginError) {
+      navigation.reset({
+        index: 0,
+        routes: [{
+          name: 'Home',
+          params: { user: { id: uid, email: userEmail } }
+        }],
+      });
+
+    } catch (error: any) {
       let errorMessage = 'Erro ao fazer login';
       
-      if (loginError instanceof Error && 'code' in loginError) {
-        const firebaseError = loginError as { code: string; message?: string };
-        
-        switch (firebaseError.code) {
+      if (error.code) {
+        switch (error.code) {
           case 'auth/invalid-credential':
             errorMessage = 'Credenciais inválidas';
             break;
@@ -162,8 +202,11 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
           case 'auth/too-many-requests':
             errorMessage = 'Muitas tentativas. Tente mais tarde';
             break;
+          case 'auth/user-disabled':
+            errorMessage = 'Conta desativada';
+            break;
           default:
-            errorMessage = firebaseError.message || 'Erro desconhecido';
+            errorMessage = error.message || 'Erro desconhecido';
         }
       }
       
@@ -183,7 +226,7 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
           onClose={() => setToastMessage(null)}
         />
       )}
-      
+
       <AnimatedLinearGradient
         colors={[color1, color2]}
         style={styles.background}
@@ -193,11 +236,11 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
       {particles}
 
       <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.contentContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => navigation.navigate('Autenticacao')}
             style={styles.backButton}
           >
@@ -206,15 +249,15 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
           </TouchableOpacity>
 
           <View style={styles.content}>
-            <Ionicons 
-              name="mail-open" 
-              size={80} 
-              color="rgba(255,255,255,0.9)" 
+            <Ionicons
+              name="mail-open"
+              size={80}
+              color="rgba(255,255,255,0.9)"
               style={styles.icon}
             />
-            
+
             <Text style={styles.title}>Bem-vindo de volta</Text>
-            
+
             <Text style={styles.subtitle}>
               Digite suas credenciais para acessar sua conta
             </Text>
@@ -231,10 +274,10 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
                 autoCorrect={false}
                 spellCheck={false}
               />
-              <Ionicons 
-                name="mail" 
-                size={20} 
-                color="rgba(255,255,255,0.7)" 
+              <Ionicons
+                name="mail"
+                size={20}
+                color="rgba(255,255,255,0.7)"
                 style={styles.inputIcon}
               />
             </View>
@@ -252,12 +295,22 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
                 style={styles.eyeButton}
                 onPress={() => setShowPassword(!showPassword)}
               >
-                <Ionicons 
-                  name={showPassword ? "eye-off" : "eye"} 
-                  size={20} 
-                  color="rgba(255,255,255,0.7)" 
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="rgba(255,255,255,0.7)"
                 />
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.biometricContainer}>
+              <Switch
+                value={enableBiometric}
+                onValueChange={setEnableBiometric}
+                trackColor={{ false: "#767577", true: "#04C6AE" }}
+                thumbColor={enableBiometric ? "#fff" : "#f4f3f4"}
+              />
+              <Text style={styles.biometricText}>Lembrar login com biometria</Text>
             </View>
 
             <TouchableOpacity
@@ -285,7 +338,7 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
 
             <View style={styles.registerContainer}>
               <Text style={styles.registerText}>Não tem uma conta?</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => navigation.navigate('Cadastro')}
               >
                 <Text style={styles.registerLink}> Cadastre-se</Text>
@@ -295,7 +348,6 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
         </ScrollView>
       </SafeAreaView>
 
-      {/* Modal de Erro */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -404,9 +456,20 @@ const styles = StyleSheet.create({
     top: 18,
     padding: 4,
   },
+  biometricContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    alignSelf: 'flex-start',
+  },
+  biometricText: {
+    color: 'rgba(255,255,255,0.7)',
+    marginLeft: 10,
+    fontSize: 14,
+  },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   forgotPasswordText: {
     color: 'rgba(255,255,255,0.7)',

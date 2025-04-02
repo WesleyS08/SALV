@@ -7,6 +7,8 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import CustomToast from '../components/CustomToast';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
@@ -267,33 +269,67 @@ export default function Principal() {
 
   const handleBiometricLogin = async () => {
     try {
+      // 1. Verifica suporte do dispositivo
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       if (!hasHardware) {
-        setToastMessage('Seu dispositivo não suporta autenticação biométrica.');
+        setToastMessage('Dispositivo não suporta biometria');
         return;
       }
 
-      const isBiometricAvailable = await LocalAuthentication.isEnrolledAsync();
-      if (!isBiometricAvailable) {
-        setToastMessage('Nenhum método biométrico foi configurado no dispositivo.');
+      // 2. Verifica se há biometria cadastrada
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!isEnrolled) {
+        setToastMessage('Nenhuma biometria cadastrada no dispositivo');
         return;
       }
 
+      // 3. Autenticação biométrica
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Confirme sua identidade',
-        fallbackLabel: 'Use sua senha',
+        promptMessage: 'Autentique-se para acessar',
+        fallbackLabel: 'Usar senha',
         cancelLabel: 'Cancelar',
+        disableDeviceFallback: false,
       });
 
-      if (result.success) {
-        setToastMessage('Usuário logado com sucesso! 🎉');
-        navigation.navigate('Home');
-      } else {
-        setToastMessage('Erro: Autenticação biométrica falhou.');
+      if (!result.success) {
+        setToastMessage('Autenticação cancelada ou falhou');
+        return;
       }
-    } catch (error: any) {
+
+      // 4. Busca credenciais salvas (usando SecureStore)
+      const savedCredentials = await SecureStore.getItemAsync('user_credentials');
+      if (!savedCredentials) {
+        setToastMessage('Faça login  com email e senha primeiro');
+        return;
+      }
+
+      const { email, password } = JSON.parse(savedCredentials);
+
+      // 5. Login no Firebase
+      const auth = getAuth();
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+      // 6. Sucesso - navega para Home
+      setToastMessage('Login biométrico realizado!');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+
+    } catch (error) {
       console.error('Erro no login biométrico:', error);
-      setToastMessage('Ocorreu um erro ao realizar o login biométrico.');
+
+      let errorMessage = 'Erro na autenticação';
+      if (error instanceof Error) {
+        if (error.message.includes('auth/invalid-credential')) {
+          errorMessage = 'Credenciais inválidas - faça login novamente';
+        } else if (error.message.includes('auth/too-many-requests')) {
+          errorMessage = 'Muitas tentativas - tente mais tarde';
+        }
+      }
+
+      setToastMessage(errorMessage);
+      navigation.navigate('Login');
     }
   };
 
@@ -333,15 +369,23 @@ export default function Principal() {
         end={{ x: 1, y: 1 }}
       />
       {particles}
-      
+
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.contentContainer}>
+          {toastMessage && (
+            <CustomToast
+              message={toastMessage}
+              duration={5000}
+              onClose={() => setToastMessage(null)}
+            />
+          )}
+
           <Image source={require('../images/logo.png')} style={styles.logo} />
           <Text style={styles.welcomeText}>SALV</Text>
           <Text style={styles.subtitle}>
             Segurança inteligente para laboratórios
           </Text>
-          
+
           <Text style={styles.sectionTitle}>Sistema de Alerta Laboratorial com Visão</Text>
           <Text style={styles.sectionText}>Login ou Cadastro</Text>
           <Text style={styles.sectionText}>
