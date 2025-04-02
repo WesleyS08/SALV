@@ -5,6 +5,7 @@ import { useFontSize } from '../Global/FontSizeContext';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '../DB/firebase';
+import supabase from '../DB/supabase'; 
 import * as ImagePicker from 'expo-image-picker';
 import CustomToast from '../components/CustomToast';
 import { logError } from '../components/logger';
@@ -81,50 +82,95 @@ const Conta = () => {
         }
     };
 
-    // Lógica de imagem
-    const handleImageSelection = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 1,
-            base64: true,
-        });
-        handleImageResult(result);
-    };
-
-    const handleTakePhoto = async () => {
-        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permissionResult.granted) {
-            setToastMessage('Permissão necessária. Permita o acesso à câmera para tirar uma foto');
-            return;
-        }
-
-        const result = await ImagePicker.launchCameraAsync({
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 1,
-            base64: true,
-        });
-        handleImageResult(result);
-    };
-
-    const handleImageResult = async (result: any) => {
-        if (!result.canceled) {
-            const imageBase64 = result.assets[0].base64;
-            if (imageBase64 && user?.uid && userData?.nome) {
-                await dbFunctionInsertPhotoProfile(user.uid, imageBase64, userData.nome);
-                setToastMessage('Foto de perfil atualizada!');
-            } else {
-                logError('Erro ao processar a imagem.', Error);
-                setToastMessage('Erro ao processar a imagem.');
-            }
-        } else {
-            setToastMessage('Erro: a imagem selecionada não contém dados válidos.');
-        }
-        setModalVisible(false);
-    };
     const [loadingPassword, setLoadingPassword] = useState(false);
+
+    const handleImageSelection = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 1,
+                base64: true,
+            });
+            
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                await handleImageResult(result);
+            } else {
+                setToastMessage('Nenhuma imagem foi selecionada.');
+            }
+        } catch (error) {
+            console.error('Error selecting image:', error);
+            setToastMessage('Erro ao selecionar a imagem da galeria.');
+        }
+    };
+    
+    const handleTakePhoto = async () => {
+        try {
+            const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permissionResult.granted) {
+                setToastMessage('Permissão necessária. Permita o acesso à câmera para tirar uma foto');
+                return;
+            }
+    
+            const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 1,
+                base64: true,
+            });
+            
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                await handleImageResult(result);
+            } else {
+                setToastMessage('Captura de foto cancelada.');
+            }
+        } catch (error) {
+            console.error('Error taking photo:', error);
+            setToastMessage('Erro ao capturar foto com a câmera.');
+        }
+    };
+    
+    const handleImageResult = async (result: ImagePicker.ImagePickerResult) => {
+        try {
+            // Check if image data exists
+            if (result.canceled || !result.assets || result.assets.length === 0) {
+                throw new Error('No image selected or operation canceled');
+            }
+    
+            const imageBase64 = result.assets[0].base64;
+            if (!imageBase64) {
+                throw new Error('Image data is missing');
+            }
+    
+            // Validate user information
+            if (!user?.uid) {
+                throw new Error('User UID is missing - please log in again');
+            }
+    
+            if (!userData?.nome) {
+                throw new Error('User name is missing - please complete your profile');
+            }
+    
+            // Upload the image
+            await dbFunctionInsertPhotoProfile(user.uid, imageBase64, userData.nome);
+            setToastMessage('Foto de perfil atualizada com sucesso!');
+            
+        } catch (error) {
+            console.error('Error processing image:', error);
+            
+            // More specific error messages
+            if (error.message.includes('User UID is missing')) {
+                setToastMessage('Sessão expirada. Por favor, faça login novamente.');
+            } else if (error.message.includes('User name is missing')) {
+                setToastMessage('Complete seu perfil antes de adicionar uma foto.');
+            } else {
+                setToastMessage('Erro ao processar a imagem. Por favor, tente novamente.');
+            }
+        } finally {
+            setModalVisible(false);
+        }
+    };
 
     // Função para alterar a senha
     const handleChangePassword = async () => {
