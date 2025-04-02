@@ -5,14 +5,20 @@ import { useFontSize } from '../Global/FontSizeContext';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '../DB/firebase';
-import supabase from '../DB/supabase'; 
 import * as ImagePicker from 'expo-image-picker';
 import CustomToast from '../components/CustomToast';
-import { logError } from '../components/logger';
 import { dbFunctionInsertPhotoProfile } from '../DB/dbFunctionInsertPhotoProfile';
-import {  onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { getAuth, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../types/navigation.types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+type ContaScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Conta'>;
+
+interface ContaProps {
+    navigation: ContaScreenNavigationProp;
+}
 
 const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28];
 
@@ -72,16 +78,28 @@ const Conta = () => {
         );
     };
 
-    // Lógica de logout
     const signOutUser = async () => {
         try {
+            await AsyncStorage.clear(); 
+            
             await signOut(auth);
-            navigation.navigate('Login');
+            
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+            });
+            
         } catch (error) {
-            console.error("Erro ao sair: ", error);
+            console.error("Erro no logout:", error);
+            setToastMessage("Erro ao sair da conta");
         }
     };
-
+    
+    const handleSignOutPress = () => {
+        signOutUser().catch(error => {
+            console.error("Erro não tratado no logout:", error);
+        });
+    };
     const [loadingPassword, setLoadingPassword] = useState(false);
 
     const handleImageSelection = async () => {
@@ -93,7 +111,7 @@ const Conta = () => {
                 quality: 1,
                 base64: true,
             });
-            
+
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 await handleImageResult(result);
             } else {
@@ -104,7 +122,7 @@ const Conta = () => {
             setToastMessage('Erro ao selecionar a imagem da galeria.');
         }
     };
-    
+
     const handleTakePhoto = async () => {
         try {
             const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
@@ -112,14 +130,14 @@ const Conta = () => {
                 setToastMessage('Permissão necessária. Permita o acesso à câmera para tirar uma foto');
                 return;
             }
-    
+
             const result = await ImagePicker.launchCameraAsync({
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 1,
                 base64: true,
             });
-            
+
             if (!result.canceled && result.assets && result.assets.length > 0) {
                 await handleImageResult(result);
             } else {
@@ -130,42 +148,39 @@ const Conta = () => {
             setToastMessage('Erro ao capturar foto com a câmera.');
         }
     };
-    
+
     const handleImageResult = async (result: ImagePicker.ImagePickerResult) => {
         try {
             // Check if image data exists
             if (result.canceled || !result.assets || result.assets.length === 0) {
                 throw new Error('No image selected or operation canceled');
             }
-    
+
             const imageBase64 = result.assets[0].base64;
             if (!imageBase64) {
                 throw new Error('Image data is missing');
             }
-    
+
             // Validate user information
             if (!user?.uid) {
                 throw new Error('User UID is missing - please log in again');
             }
-    
+
             if (!userData?.nome) {
                 throw new Error('User name is missing - please complete your profile');
             }
-    
+
             // Upload the image
             await dbFunctionInsertPhotoProfile(user.uid, imageBase64, userData.nome);
             setToastMessage('Foto de perfil atualizada com sucesso!');
-            
+
         } catch (error) {
-            console.error('Error processing image:', error);
-            
-            // More specific error messages
-            if (error.message.includes('User UID is missing')) {
-                setToastMessage('Sessão expirada. Por favor, faça login novamente.');
-            } else if (error.message.includes('User name is missing')) {
-                setToastMessage('Complete seu perfil antes de adicionar uma foto.');
+            if (error instanceof Error) {
+                console.error("Erro ao sair: ", error.message);
+                setToastMessage(error.message);
             } else {
-                setToastMessage('Erro ao processar a imagem. Por favor, tente novamente.');
+                console.error("Erro desconhecido ao sair: ", error);
+                setToastMessage("Ocorreu um erro desconhecido");
             }
         } finally {
             setModalVisible(false);
@@ -174,208 +189,239 @@ const Conta = () => {
 
     // Função para alterar a senha
     const handleChangePassword = async () => {
-        if (!user) {
-            setPasswordError('Erro: Usuário não autenticado.');
+        if (!user || !user.email) {
+            setPasswordError('Erro: Usuário não autenticado ou sem email cadastrado.');
             return;
         }
-    
-        // Verifica se as senhas novas coincidem
+
         if (newPassword !== confirmNewPassword) {
             setPasswordError('As senhas não coincidem.');
             return;
         }
-    
-        // Verifica se a nova senha tem pelo menos 6 caracteres
+
         if (newPassword.length < 6) {
             setPasswordError('A nova senha deve ter pelo menos 6 caracteres.');
             return;
         }
-    
-        setLoadingPassword(true); // Mostra o carregamento
-    
+
+        setLoadingPassword(true);
+
         try {
-            // Tenta fazer login com a senha atual
             const userCredential = await signInWithEmailAndPassword(auth, user.email, currentPassword);
-    
-            // Atualiza a senha do usuário
+
             if (userCredential.user) {
                 await updatePassword(userCredential.user, newPassword);
             }
-    
-            // Mensagem de sucesso
+
             setToastMessage('Senha alterada com sucesso!');
             setModalVisible(false);
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+            setPasswordError('');
         } catch (error) {
             console.error("Erro ao alterar a senha:", error);
-            setPasswordError('Erro ao alterar a senha. Verifique a senha atual.');
+
+            if (typeof error === 'object' && error !== null && 'code' in error) {
+                const firebaseError = error as { code: string; message: string };
+
+                switch (firebaseError.code) {
+                    case 'auth/wrong-password':
+                        setPasswordError('Senha atual incorreta.');
+                        break;
+                    case 'auth/too-many-requests':
+                        setPasswordError('Muitas tentativas. Tente novamente mais tarde.');
+                        break;
+                    default:
+                        setPasswordError('Erro ao alterar senha: ' + firebaseError.message);
+                }
+            } else {
+                setPasswordError('Erro desconhecido ao alterar senha.');
+            }
+        } finally {
+            setLoadingPassword(false);
         }
-    
-        setLoadingPassword(false); // Remove o carregamento
     };
-    
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-
-if (loading) {
+
+    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-
+    if (loading) {
+        return (
+            <View style={styles.container}>
+                <Text >Carregando...</Text>
+            </View>
+        );
+    }
+
     return (
-        <View style={styles.container}>
-            <Text style={styles.text}>Carregando...</Text>
-        </View>
-    );
-}
-
-return (
-    <ScrollView style={[styles.container, isDarkMode && styles.containerDark]}>
-        {toastMessage && (
-            <CustomToast
-                message={toastMessage}
-                duration={5000}
-                onClose={() => setToastMessage(null)}
-            />
-        )}
-
-        <View style={styles.header}>
-            <TouchableOpacity onPress={handleImageSelection}>
-                <Image
-                    source={user?.photoURL ? { uri: user.photoURL } : require('../../assets/img/user.png')}
-                    style={styles.profileImage}
+        <ScrollView style={[styles.container, isDarkMode && styles.containerDark]}>
+            {toastMessage && (
+                <CustomToast
+                    message={toastMessage}
+                    duration={5000}
+                    onClose={() => setToastMessage(null)}
                 />
-            </TouchableOpacity>
+            )}
 
-            <Text style={[styles.userName, isDarkMode && styles.userNameDark, { fontSize }]}>{user?.displayName || 'Nome do usuário'}</Text>
-        </View>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={handleImageSelection}>
+                    <Image
+                        source={user?.photoURL ? { uri: user.photoURL } : require('../../assets/img/user.png')}
+                        style={styles.profileImage}
+                    />
+                </TouchableOpacity>
+
+                <Text style={[styles.userName, isDarkMode && styles.userNameDark, { fontSize }]}>{user?.displayName || 'Nome do usuário'}</Text>
+            </View>
 
 
-        <View style={styles.section}>
-            <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize }]}>Configurações de Conta</Text>
-            <TouchableOpacity style={styles.option}>
-                <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Editar dados</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.option} onPress={() => {
-                setModalContent('Alterar senha');
-                setModalVisible(true);
-            }}>
-                <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Alterar a senha</Text>
-            </TouchableOpacity>
+            <View style={styles.section}>
+                <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize }]}>Configurações de Conta</Text>
+                <TouchableOpacity style={styles.option}>
+                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Editar dados</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.option} onPress={() => {
+                    setModalContent('Alterar senha');
+                    setModalVisible(true);
+                }}>
+                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Alterar a senha</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.settingItem]}>
-                <Text style={[styles.label, isDarkMode && styles.labelDark, { fontSize }]}>Modo Escuro</Text>
-                <Switch
-                    value={isDarkMode}
-                    onValueChange={toggleDarkMode}
-                    trackColor={{ false: '#ccc', true: '#27c0c2' }}
-                    thumbColor={isDarkMode ? '#fff' : '#f4f3f4'}
-                />
-            </TouchableOpacity>
+                <TouchableOpacity style={[styles.settingItem]}>
+                    <Text style={[styles.label, isDarkMode && styles.labelDark, { fontSize }]}>Modo Escuro</Text>
+                    <Switch
+                        value={isDarkMode}
+                        onValueChange={toggleDarkMode}
+                        trackColor={{ false: '#ccc', true: '#27c0c2' }}
+                        thumbColor={isDarkMode ? '#fff' : '#f4f3f4'}
+                    />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-                style={styles.option}
-                onPress={() => setFontSize(getClosestFontSize(fontSize + 2))}
-            >
-                <Text style={[styles.optionText, { fontSize }, isDarkMode && styles.optionTextDark, { fontSize }]}>Aumentar fonte</Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.option}
+                    onPress={() => setFontSize(getClosestFontSize(fontSize + 2))}
+                >
+                    <Text style={[styles.optionText, { fontSize }, isDarkMode && styles.optionTextDark, { fontSize }]}>Aumentar fonte</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-                style={styles.option}
-                onPress={() => setFontSize(getClosestFontSize(fontSize - 2))}
-            >
-                <Text style={[styles.optionText, { fontSize }, isDarkMode && styles.optionTextDark, { fontSize }]}>Diminuir fonte</Text>
-            </TouchableOpacity>
-        </View>
+                <TouchableOpacity
+                    style={styles.option}
+                    onPress={() => setFontSize(getClosestFontSize(fontSize - 2))}
+                >
+                    <Text style={[styles.optionText, { fontSize }, isDarkMode && styles.optionTextDark, { fontSize }]}>Diminuir fonte</Text>
+                </TouchableOpacity>
+            </View>
 
-        <View style={styles.section}>
-            <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize }]}>Mais Opções</Text>
-            <TouchableOpacity style={styles.option} onPress={() => openModal('Sobre nós')}>
-                <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Sobre nós</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.option} onPress={() => openModal('Política de Privacidade')}>
-                <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Política de Privacidade</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.option} onPress={() => openModal('Termos e Condições')}>
-                <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Termos e Condições</Text>
-            </TouchableOpacity>
-        </View>
-
-        <View style={styles.footer}>
-            <TouchableOpacity onPress={signOutUser} style={styles.logoutButton}>
-                <Text style={[styles.logoutText, isDarkMode && styles.logoutTextDark, { fontSize }]}>Sair da Conta</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteButton}>
-                <Text style={[styles.deleteText, isDarkMode && styles.deleteTextDark, { fontSize }]}>Deletar Conta</Text>
-            </TouchableOpacity>
-        </View>
-
-        {/* Modal */}
-        <Modal
-            visible={modalVisible}
-            animationType="slide"
-            transparent={true}
-            onRequestClose={() => setModalVisible(false)}
-        >
-            <View style={[styles.modalContainer, isDarkMode && styles.modalContainerDark]}>
-                <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
-                    <Text style={[styles.modalText, { fontSize }, isDarkMode && styles.modalTextDark]}>
-                        {getModalContent(modalContent)}
+            <View style={styles.section}>
+                <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize }]}>Mais Opções</Text>
+                <TouchableOpacity style={styles.option} onPress={() => openModal('Sobre nós')}>
+                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Sobre nós</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.option} onPress={() => openModal('Política de Privacidade')}>
+                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Política de Privacidade</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.option} onPress={() => openModal('Termos e Condições')}>
+                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Termos e Condições</Text>
+                </TouchableOpacity>
+            </View>
+            <View style={styles.footer}>
+                {/* 3. Use a função wrapper no onPress */}
+                <TouchableOpacity
+                    onPress={handleSignOutPress}
+                    style={styles.logoutButton}
+                >
+                    <Text style={[
+                        styles.logoutText,
+                        isDarkMode && styles.logoutTextDark,
+                        { fontSize }
+                    ]}>
+                        Sair da Conta
                     </Text>
-                    <TouchableOpacity
-                        style={styles.closeModalButton}
-                        onPress={() => setModalVisible(false)}
-                    >
-                        <Text style={[styles.closeModalText, isDarkMode && styles.closeModalTextDark]}>Fechar</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </Modal>
-        <Modal visible={modalVisible} animationType="slide" transparent={true}>
-            <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                    {modalContent === 'Alterar senha' ? (
-                        <View style={styles.modalBody}>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Senha Atual"
-                                value={currentPassword}
-                                onChangeText={setCurrentPassword}
-                                secureTextEntry={!showPassword} 
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Nova Senha"
-                                value={newPassword}
-                                onChangeText={setNewPassword}
-                                secureTextEntry={!showPassword}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Confirmar Nova Senha"
-                                value={confirmNewPassword}
-                                onChangeText={setConfirmNewPassword}
-                                secureTextEntry={!showPassword}
-                            />
-                            {passwordError && <Text style={styles.passwordError}>{passwordError}</Text>}
-                            <TouchableOpacity onPress={handleChangePassword} style={styles.modalButton}>
-                                <Text style={styles.modalButtonText}>Alterar Senha</Text>
-                            </TouchableOpacity>
+                </TouchableOpacity>
 
-                            <TouchableOpacity onPress={togglePasswordVisibility} style={styles.showPasswordButton}>
-                                <Text style={styles.showPasswordText}>
-                                    {showPassword ? 'Ocultar Senhas' : 'Mostrar Senhas'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <Text>{modalContent}</Text>
-                    )}
-
-                    <TouchableOpacity
-                        onPress={() => setModalVisible(false)}
-                        style={styles.closeButton}
-                    >
-                        <Text style={styles.closeButtonText}>Fechar</Text>
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity style={styles.deleteButton}>
+                    <Text style={[
+                        styles.deleteText,
+                        isDarkMode && styles.deleteTextDark,
+                        { fontSize }
+                    ]}>
+                        Deletar Conta
+                    </Text>
+                </TouchableOpacity>
             </View>
-        </Modal>
-    </ScrollView>
-);
+
+            {/* Modal */}
+            <Modal
+                visible={modalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={[styles.modalContainer, isDarkMode && styles.modalContainerDark]}>
+                    <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+                        <Text style={[styles.modalText, { fontSize }, isDarkMode && styles.modalTextDark]}>
+                            {getModalContent(modalContent)}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.closeModalButton}
+                            onPress={() => setModalVisible(false)}
+                        >
+                            <Text style={[styles.closeModalText, isDarkMode && styles.closeModalTextDark]}>Fechar</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+            <Modal visible={modalVisible} animationType="slide" transparent={true}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        {modalContent === 'Alterar senha' ? (
+                            <View style={styles.modalBody}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Senha Atual"
+                                    value={currentPassword}
+                                    onChangeText={setCurrentPassword}
+                                    secureTextEntry={!showPassword}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Nova Senha"
+                                    value={newPassword}
+                                    onChangeText={setNewPassword}
+                                    secureTextEntry={!showPassword}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Confirmar Nova Senha"
+                                    value={confirmNewPassword}
+                                    onChangeText={setConfirmNewPassword}
+                                    secureTextEntry={!showPassword}
+                                />
+                                {passwordError && <Text style={styles.passwordError}>{passwordError}</Text>}
+                                <TouchableOpacity onPress={handleChangePassword} style={styles.modalButton}>
+                                    <Text style={styles.modalButtonText}>Alterar Senha</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity onPress={togglePasswordVisibility} style={styles.showPasswordButton}>
+                                    <Text style={styles.showPasswordText}>
+                                        {showPassword ? 'Ocultar Senhas' : 'Mostrar Senhas'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : (
+                            <Text>{modalContent}</Text>
+                        )}
+
+                        <TouchableOpacity
+                            onPress={() => setModalVisible(false)}
+                            style={styles.closeButton}
+                        >
+                            <Text style={styles.closeButtonText}>Fechar</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        </ScrollView>
+    );
 };
 
 const styles = StyleSheet.create({
@@ -544,6 +590,30 @@ const styles = StyleSheet.create({
     showPasswordText: {
         color: '#007BFF',
     },
+    closeModalText: {
+        color: '#333',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    closeModalTextDark: {
+        color: '#fff',
+    },
+    closeModalButton: {
+        padding: 10,
+        marginTop: 15,
+        backgroundColor: '#27c0c2',
+        borderRadius: 5,
+    },
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    modalContainerDark: {
+        backgroundColor: 'rgba(0,0,0,0.8)',
+    },
+
 });
 
 export default Conta;

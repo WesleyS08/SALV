@@ -1,26 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  TextInput, 
-  Text, 
-  Modal, 
-  TouchableOpacity, 
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Animated,
-  Easing,
-  ActivityIndicator
-} from 'react-native';
+import {   View,   TextInput,   Text,   Modal,   TouchableOpacity,   StyleSheet,  SafeAreaView,  ScrollView,  Animated,  Easing,  ActivityIndicator} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { app } from '../DB/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import CustomToast from '../components/CustomToast';
+import { NavigationProp } from '@react-navigation/native';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
+interface LoginProps {
+  navigation: NavigationProp<any>;
+}
 
-const Login = ({ navigation }) => {
+const Login: React.FC<LoginProps> = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -28,7 +20,7 @@ const Login = ({ navigation }) => {
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [toastMessage, setToastMessage] = useState(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const colorAnim = useRef(new Animated.Value(0)).current;
 
   // Animação do gradiente
@@ -53,8 +45,15 @@ const Login = ({ navigation }) => {
     outputRange: ['#4E4376', '#2B5876', '#4E4376'],
   });
 
-  // Componente de partículas
-  const Particle = ({ size, left, top, duration, delay }) => {
+interface ParticleProps {
+  size: number;
+  left: number;
+  top: number;
+  duration: number;
+  delay: number;
+}
+
+const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay }) => {
     const animValue = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -115,7 +114,7 @@ const Login = ({ navigation }) => {
     />
   ));
 
-  const validateEmail = (email) => {
+  const validateEmail = (email:any) => {
     const re = /\S+@\S+\.\S+/;
     return re.test(email);
   };
@@ -147,21 +146,25 @@ const Login = ({ navigation }) => {
     } catch (loginError) {
       let errorMessage = 'Erro ao fazer login';
       
-      switch (loginError.code) {
-        case 'auth/invalid-credential':
-          errorMessage = 'Credenciais inválidas';
-          break;
-        case 'auth/user-not-found':
-          errorMessage = 'Usuário não encontrado';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Senha incorreta';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Muitas tentativas. Tente mais tarde';
-          break;
-        default:
-          errorMessage = loginError.message || 'Erro desconhecido';
+      if (loginError instanceof Error && 'code' in loginError) {
+        const firebaseError = loginError as { code: string; message?: string };
+        
+        switch (firebaseError.code) {
+          case 'auth/invalid-credential':
+            errorMessage = 'Credenciais inválidas';
+            break;
+          case 'auth/user-not-found':
+            errorMessage = 'Usuário não encontrado';
+            break;
+          case 'auth/wrong-password':
+            errorMessage = 'Senha incorreta';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Muitas tentativas. Tente mais tarde';
+            break;
+          default:
+            errorMessage = firebaseError.message || 'Erro desconhecido';
+        }
       }
       
       setModalMessage(errorMessage);
@@ -195,7 +198,7 @@ const Login = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
         >
           <TouchableOpacity 
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.navigate('Autenticacao')}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="white" />
