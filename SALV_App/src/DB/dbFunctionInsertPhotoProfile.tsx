@@ -70,9 +70,9 @@ export const dbFunctionInsertPhotoProfile = async (userId: string, imageBase64: 
 
         // Atualiza a URL da foto de perfil na tabela 'usuarios'
         const { data: updateData, error: updateError } = await supabase
-            .from('usuarios')
+            .from('Tb_Usuarios')
             .update({ photoURL: publicUrl })
-            .eq('user_id', userId);
+            .eq('ID_Usuarios', userId);
 
         if (updateError) {
             console.error('Erro ao atualizar o photoURL na tabela usuarios:', updateError.message);

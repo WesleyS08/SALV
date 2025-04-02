@@ -140,9 +140,16 @@ const Login: React.FC<LoginProps> = ({ navigation }) => {
     try {
       const credentials = JSON.stringify({
         email,
-        password: await encryptData(password)
+        password
       });
       await SecureStore.setItemAsync('user_credentials', credentials);
+      const saved = await SecureStore.getItemAsync('user_credentials');
+      console.log('Credenciais salvas:', saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        console.log('Email salvo:', parsed.email);
+        console.log('Senha :', parsed.password);
+      }
     } catch (error) {
       console.error('Erro ao salvar credenciais:', error);
       throw new Error('Falha ao salvar credenciais para biometria');
@@ -187,7 +194,7 @@ const Login: React.FC<LoginProps> = ({ navigation }) => {
 
     } catch (error: any) {
       let errorMessage = 'Erro ao fazer login';
-      
+
       if (error.code) {
         switch (error.code) {
           case 'auth/invalid-credential':
@@ -209,7 +216,7 @@ const Login: React.FC<LoginProps> = ({ navigation }) => {
             errorMessage = error.message || 'Erro desconhecido';
         }
       }
-      
+
       setModalMessage(errorMessage);
       setErrorModalVisible(true);
     } finally {

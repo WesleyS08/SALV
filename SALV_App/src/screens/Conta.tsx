@@ -13,6 +13,7 @@ import { getAuth, signInWithEmailAndPassword, updatePassword } from 'firebase/au
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import supabase from '../DB/supabase';
 
 type ContaScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Conta'>;
 
@@ -42,7 +43,35 @@ const Conta = () => {
     const [showPassword, setShowPassword] = useState(false);
     const togglePasswordVisibility = () => setShowPassword(!showPassword);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    
+
+
+    useEffect(() => {
+        const fetchUserData = async () => {
+            if (!user?.uid) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('Tb_Usuarios')
+                    .select('*')
+                    .eq('ID_Usuarios', user.uid)
+                    .single();
+
+                if (error) throw error;
+
+                if (data) {
+                    console.log("Dados do usuário:", data);
+                    setUserData(data);
+                }
+            } catch (error) {
+                console.error('Erro ao buscar dados do usuário:', error);
+                setToastMessage('Erro ao carregar perfil');
+            }
+        };
+
+        fetchUserData();
+    }, [user?.uid]);
+
+
 
     const verifyAuth = async (): Promise<User> => {
         const auth = getAuth();
@@ -64,7 +93,7 @@ const Conta = () => {
             setUser(firebaseUser);
             setIsAuthenticated(!!firebaseUser?.uid);
             setLoading(false);
-            
+
             if (!firebaseUser) {
                 navigation.reset({
                     index: 0,
@@ -103,21 +132,21 @@ const Conta = () => {
 
     const signOutUser = async () => {
         try {
-            await AsyncStorage.clear(); 
-            
+            await AsyncStorage.clear();
+
             await signOut(auth);
-            
+
             navigation.reset({
                 index: 0,
                 routes: [{ name: 'Login' }],
             });
-            
+
         } catch (error) {
             console.error("Erro no logout:", error);
             setToastMessage("Erro ao sair da conta");
         }
     };
-    
+
     const handleSignOutPress = () => {
         signOutUser().catch(error => {
             console.error("Erro não tratado no logout:", error);
@@ -145,7 +174,6 @@ const Conta = () => {
             setToastMessage('Erro ao selecionar a imagem da galeria.');
         }
     };
-
     const handleImageResult = async (result: ImagePicker.ImagePickerResult) => {
         try {
             if (result.canceled || !result.assets?.length) {
@@ -159,11 +187,13 @@ const Conta = () => {
 
             const currentUser = await verifyAuth();
 
-            if (!userData?.nome) {
+            console.log("Verificando userData antes do envio:", userData);
+
+            if (!userData || !userData.Nome?.trim()) {
                 throw new Error('Complete seu perfil antes de adicionar foto');
             }
 
-            await dbFunctionInsertPhotoProfile(currentUser.uid, imageBase64, userData.nome);
+            await dbFunctionInsertPhotoProfile(currentUser.uid, imageBase64, userData.Nome.trim());
             setToastMessage('Foto atualizada com sucesso!');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Erro ao processar imagem';
@@ -176,7 +206,7 @@ const Conta = () => {
     const handleChangePassword = async () => {
         try {
             const currentUser = await verifyAuth();
-            
+
             if (!currentUser.email) {
                 setPasswordError('Email do usuário não encontrado');
                 return;
@@ -193,28 +223,28 @@ const Conta = () => {
             }
 
             setLoadingPassword(true);
-            
+
             const userCredential = await signInWithEmailAndPassword(
-                auth, 
-                currentUser.email, 
+                auth,
+                currentUser.email,
                 currentPassword
             );
 
             await updatePassword(userCredential.user, newPassword);
-            
+
             setToastMessage('Senha alterada com sucesso!');
             setModalVisible(false);
             setCurrentPassword('');
             setNewPassword('');
             setConfirmNewPassword('');
             setPasswordError('');
-            
+
         } catch (error) {
             let errorMessage = 'Erro ao alterar senha';
-            
+
             if (typeof error === 'object' && error !== null && 'code' in error) {
                 const firebaseError = error as { code: string; message: string };
-                
+
                 switch (firebaseError.code) {
                     case 'auth/wrong-password':
                         errorMessage = 'Senha atual incorreta';
@@ -226,13 +256,13 @@ const Conta = () => {
                         errorMessage = firebaseError.message || errorMessage;
                 }
             }
-            
+
             setPasswordError(errorMessage);
         } finally {
             setLoadingPassword(false);
         }
     };
-    
+
     // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-
     if (loading) {
         return (
@@ -255,12 +285,14 @@ const Conta = () => {
             <View style={styles.header}>
                 <TouchableOpacity onPress={handleImageSelection}>
                     <Image
-                        source={user?.photoURL ? { uri: user.photoURL } : require('../../assets/img/user.png')}
+                        source={userData?.photoURL ? { uri: userData.photoURL } : require('../../assets/img/user.png')}
                         style={styles.profileImage}
                     />
                 </TouchableOpacity>
 
-                <Text style={[styles.userName, isDarkMode && styles.userNameDark, { fontSize }]}>{user?.displayName || 'Nome do usuário'}</Text>
+                <Text style={[styles.userName, isDarkMode && styles.userNameDark, { fontSize }]}>
+                    {userData?.Nome || user?.displayName || 'Nome do usuário'}
+                </Text>
             </View>
 
 

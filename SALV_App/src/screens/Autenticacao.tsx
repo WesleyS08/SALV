@@ -269,69 +269,85 @@ export default function Principal() {
 
   const handleBiometricLogin = async () => {
     try {
-      // 1. Verifica suporte do dispositivo
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      if (!hasHardware) {
-        setToastMessage('Dispositivo não suporta biometria');
-        return;
-      }
+        // 1. Verificação mais robusta de hardware e biometria
+        const [hasHardware, isEnrolled] = await Promise.all([
+            LocalAuthentication.hasHardwareAsync(),
+            LocalAuthentication.isEnrolledAsync()
+        ]);
 
-      // 2. Verifica se há biometria cadastrada
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-      if (!isEnrolled) {
-        setToastMessage('Nenhuma biometria cadastrada no dispositivo');
-        return;
-      }
+        if (!hasHardware) {
+            setToastMessage('Dispositivo não suporta autenticação biométrica');
+            return;
+        }
 
-      // 3. Autenticação biométrica
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Autentique-se para acessar',
-        fallbackLabel: 'Usar senha',
-        cancelLabel: 'Cancelar',
-        disableDeviceFallback: false,
-      });
+        if (!isEnrolled) {
+            setToastMessage('Nenhuma biometria/configuração de bloqueio cadastrada');
+            return;
+        }
 
-      if (!result.success) {
-        setToastMessage('Autenticação cancelada ou falhou');
-        return;
-      }
+        // 2. Autenticação com mais opções de fallback
+        const authResult = await LocalAuthentication.authenticateAsync({
+            promptMessage: 'Autentique-se para entrar',
+            fallbackLabel: 'Usar senha',
+            disableDeviceFallback: true, 
+            cancelLabel: 'Cancelar'
+        });
 
-      // 4. Busca credenciais salvas (usando SecureStore)
-      const savedCredentials = await SecureStore.getItemAsync('user_credentials');
-      if (!savedCredentials) {
-        setToastMessage('Faça login  com email e senha primeiro');
-        return;
-      }
+        if (!authResult.success) {
+            if (authResult.error === 'user_cancel') {
+                setToastMessage('Autenticação cancelada pelo usuário');
+            } else {
+                setToastMessage('Falha na autenticação: ' + authResult.error);
+            }
+            return;
+        }
 
-      const { email, password } = JSON.parse(savedCredentials);
+        // 3. Busca segura das credenciais
+        const credentialsString = await SecureStore.getItemAsync('user_credentials');
+        if (!credentialsString) {
+            setToastMessage('Nenhum login salvo encontrado');
+            await SecureStore.deleteItemAsync('user_credentials'); 
+            return;
+        }
 
-      // 5. Login no Firebase
-      const auth = getAuth();
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        // 4. Decriptografia e validação
+        const credentials = JSON.parse(credentialsString);
+        
+        // 5. Login no Firebase
+        const auth = getAuth();
+        const userCredential = await signInWithEmailAndPassword(
+            auth, 
+            credentials.email, 
+            credentials.password
+        );
 
-      // 6. Sucesso - navega para Home
-      setToastMessage('Login biométrico realizado!');
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+        // Verificação adicional
+        if (!userCredential?.user) {
+            throw new Error('Autenticação falhou após credenciais válidas');
+        }
+
+        // Sucesso
+        navigation.reset({
+            index: 0,
+            routes: [{ name: 'Home' }],
+        });
 
     } catch (error) {
-      console.error('Erro no login biométrico:', error);
-
-      let errorMessage = 'Erro na autenticação';
-      if (error instanceof Error) {
-        if (error.message.includes('auth/invalid-credential')) {
-          errorMessage = 'Credenciais inválidas - faça login novamente';
-        } else if (error.message.includes('auth/too-many-requests')) {
-          errorMessage = 'Muitas tentativas - tente mais tarde';
+        console.error('Erro no login biométrico:', error);
+        
+        // Tratamento específico para erros conhecidos
+        if (error.code === 'auth/invalid-credential' || 
+            error.code === 'auth/user-not-found' || 
+            error.code === 'auth/wrong-password') {
+            await SecureStore.deleteItemAsync('user_credentials');
+            setToastMessage('Credenciais inválidas - faça login novamente');
+            navigation.navigate('Login');
+        } else {
+            setToastMessage('Erro na autenticação: ' + 
+                (error.message || 'Tente novamente mais tarde'));
         }
-      }
-
-      setToastMessage(errorMessage);
-      navigation.navigate('Login');
     }
-  };
+};
 
   const particles = Array.from({ length: 15 }).map((_, i) => (
     <Particle
