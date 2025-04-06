@@ -10,204 +10,289 @@ from paho import mqtt
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from flask import Flask, Response
+from datetime import datetime
+from ultralytics import YOLO
+import mediapipe as mp
 
-# Carregar variáveis do arquivo .env
+# Carregar variáveis do ambiente
 load_dotenv()
 
+# Configurações iniciais
 mqtt_username = os.getenv("MQTT_USERNAME")
 mqtt_password = os.getenv("MQTT_PASSWORD")
 mqtt_cluster_url = os.getenv("MQTT_CLUSTER_URL")
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 
-# Conectar ao Supabase
-supabase: Client = create_client(supabase_url, supabase_key)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+# Inicialização dos serviços
+supabase = create_client(supabase_url, supabase_key)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__)
 
-# Rede neural pré-treinada MobileNet SSD para detecção de pessoas
-net = cv2.dnn.readNetFromCaffe(
-    os.path.join(BASE_DIR, "modelos", "deploy.prototxt"),
-    os.path.join(BASE_DIR, "modelos", "mobilenet_iter_73000.caffemodel")
-)
+# Modelos de IA
+yolo_model = YOLO(os.path.join(BASE_DIR, "models", "yolov8n.pt"))
+mp_face_detection = mp.solutions.face_detection
+face_detector = mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5)
 
-face_detector = cv2.dnn.readNetFromCaffe(
-    os.path.join(BASE_DIR, "modelos", "deployfaces.prototxt"),
-    os.path.join(BASE_DIR, "modelos", "res10_300x300_ssd_iter_140000.caffemodel")
-)
-
-# Variáveis de controle para gravação
+# Variáveis globais
 gravando = False
 hora_inicio = None
 hora_fim = None
+video_writer = None
+caminho_video_local = None
 frame_atual = None
 
-# Criar aplicativo Flask
-app = Flask(__name__)
-
 def gerar_video():
-    global gravando, frame_atual
-    cap = cv2.VideoCapture(0) 
-    
+    global gravando, hora_inicio, hora_fim, video_writer, caminho_video_local, frame_atual
+
+    # Configuração da câmera
+    cap = cv2.VideoCapture(1)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
     if not cap.isOpened():
-        print("Erro ao conectar à câmera.")
+        print("ERRO: Câmera não disponível!")
         return
-    
-    print("Câmera conectada com sucesso!")
 
-    while gravando:  
-        ret, frame = cap.read()
-        if not ret:
-            print("Erro ao capturar o vídeo.")
-            break
+    # Preparação da gravação
+    print("Iniciando gravação...")
+    hora_inicio = datetime.now()
+    nome_arquivo = f"gravacao_{hora_inicio.strftime('%Y%m%d_%H%M%S')}.mp4"
+    caminho_video_local = os.path.join(BASE_DIR, "gravacoes", nome_arquivo)
+    os.makedirs(os.path.dirname(caminho_video_local), exist_ok=True)
 
-        height, width = frame.shape[:2]
+    # Configurações do vídeo
+    fps = 30.0
+    codec = cv2.VideoWriter_fourcc(*'mp4v')
+    video_writer = cv2.VideoWriter(caminho_video_local, codec, fps, (1280, 720))
 
-        blob = cv2.dnn.blobFromImage(frame, 0.007843, (300, 300), (127.5, 127.5, 127.5), swapRB=True)
-        net.setInput(blob)
-        detections = net.forward()
+    # Cores para visualização
+    COR_PESSOA = (61, 0, 134)
+    COR_ROSTO = (203, 192, 255)
+    COR_TEXTO = (61, 0, 134)
 
-        for i in range(detections.shape[2]):
-            confidence = detections[0, 0, i, 2]
-            if confidence > 0.6: 
-                idx = int(detections[0, 0, i, 1])
-                if idx == 15:  
-                    box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
-                    (startX, startY, endX, endY) = box.astype("int")
-
-                    cv2.rectangle(frame, (startX, startY), (endX, endY), (174, 198, 4), 2)
-
-                    # Recortar a região do corpo para detectar o rosto
-                    body_roi = frame[startY:endY, startX:endX]
-                    if body_roi.size != 0:
+    with mp_face_detection.FaceDetection(
+        model_selection=0,
+        min_detection_confidence=0.5
+    ) as face_detection:
+        
+        while gravando:
+            start_time = time.time()
             
-                        blob_face = cv2.dnn.blobFromImage(body_roi, 1.0, (300, 300), (104.0, 177.0, 123.0))
-                        face_detector.setInput(blob_face)
-                        face_detections = face_detector.forward()
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-                        for j in range(face_detections.shape[2]):
-                            face_confidence = face_detections[0, 0, j, 2]
-                            if face_confidence > 0.4: 
-                                face_box = face_detections[0, 0, j, 3:7] * np.array([body_roi.shape[1], body_roi.shape[0], body_roi.shape[1], body_roi.shape[0]])
-                                (face_startX, face_startY, face_endX, face_endY) = face_box.astype("int")
+            frame = cv2.resize(frame, (1280, 720))
+            display_frame = frame.copy()
+            
+            # Detecção de pessoas com YOLO
+            results = yolo_model(frame, imgsz=640, conf=0.6)[0]
+            pessoas_detectadas = 0
 
-                                face_startX += startX
-                                face_startY += startY
-                                face_endX += startX
-                                face_endY += startY
+            for det in results.boxes:
+                cls = int(det.cls.item())
+                if cls == 0:  # Classe 'pessoa' no YOLO
+                    pessoas_detectadas += 1
+                    x1, y1, x2, y2 = map(int, det.xyxy[0])
+                    
+                    # Desenhar retângulo ao redor da pessoa
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), COR_PESSOA, 2)
+                    cv2.putText(display_frame, "PESSOA", (x1, y1 - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
 
-                                cv2.rectangle(frame, (face_startX, face_startY), (face_endX, face_endY), (213, 52, 141), 2)
+                    # Detecção de rosto na área da pessoa
+                    body_roi = frame[y1:y2, x1:x2]
+                    if body_roi.size > 0:
+                        rgb_roi = cv2.cvtColor(body_roi, cv2.COLOR_BGR2RGB)
+                        face_results = face_detection.process(rgb_roi)
 
-                                # Recortar o rosto e aplicar o zoom
-                                face_roi = frame[face_startY:face_endY, face_startX:face_endX]
-                                if face_roi.size != 0:
-                                    face_resized = cv2.resize(face_roi, (150, 150), interpolation=cv2.INTER_LINEAR)
-                                    frame[10:160, width-160:width-10] = face_resized  # Desenha no canto superior direito ou podemos colocar uma tela separada mas acho zoado 
+                        if face_results.detections:
+                            for detection in face_results.detections:
+                                bbox = detection.location_data.relative_bounding_box
+                                ih, iw = body_roi.shape[:2]
+                                fx, fy = int(bbox.xmin * iw), int(bbox.ymin * ih)
+                                fw, fh = int(bbox.width * iw), int(bbox.height * ih)
+                                
+                                # Coordenadas absolutas do rosto
+                                abs_fx, abs_fy = x1 + fx, y1 + fy
+                                
+                                # Recorte do rosto
+                                face_close_up = frame[
+                                    max(0, abs_fy-30):min(720, abs_fy+fh+30), 
+                                    max(0, abs_fx-30):min(1280, abs_fx+fw+30)
+                                ]
+                                
+                                try:
+                                    face_close_up = cv2.resize(face_close_up, (200, 200))
+                                    display_frame[20:220, 1060:1260] = face_close_up
+                                    cv2.rectangle(display_frame, (1059, 19), (1261, 221), COR_PESSOA, 2)
+                                    cv2.putText(display_frame, "Rosto", (1070, 30), 
+                                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
+                                except Exception as e:
+                                    print(f"Erro no close-up: {e}")
 
-        frame_atual = frame
+            # Atualizar frame e controlar FPS
+            frame_atual = display_frame.copy()
+            video_writer.write(display_frame)
+            
+            # Exibir FPS
+            current_fps = 1.0 / (time.time() - start_time)
+            cv2.putText(display_frame, f"FPS: {current_fps:.1f}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            
+            print(f"Pessoas: {pessoas_detectadas} | FPS: {current_fps:.1f}")
+            time.sleep(max(0, 0.033 - (time.time() - start_time)))  # ~30fps
 
+    # Finalização
     cap.release()
+    video_writer.release()
+    print("Gravação encerrada.")
+
+    hora_fim = datetime.now()
+    duracao = (hora_fim - hora_inicio).total_seconds()
+    url_video = enviar_video_supabase(caminho_video_local)
+    salvar_informacoes_filmagem(hora_inicio, hora_fim, duracao, url_video, caminho_video_local)
+
+def enviar_video_supabase(caminho_local):
+    try:
+        if not os.path.exists(caminho_local) or os.path.getsize(caminho_local) == 0:
+            print("Erro: Arquivo de vídeo vazio ou não encontrado")
+            return None
+
+        nome_arquivo = os.path.basename(caminho_local)
+        with open(caminho_local, "rb") as f:
+            response = supabase.storage.from_("filmagens").upload(
+                f"gravacoes/{nome_arquivo}",
+                f,
+                {"content-type": "video/mp4"}
+            )
+
+        # Verificar se houve erro no upload
+        if response is None or not hasattr(response, "data") or response.data is None:
+            print("Erro no upload: resposta vazia ou erro na requisição")
+            return None
+
+        # Obter URL pública do arquivo
+        url_publica = supabase.storage.from_("filmagens").get_public_url(f"gravacoes/{nome_arquivo}")
+        print("Vídeo enviado com sucesso:", url_publica)
+        return url_publica
+
+    except Exception as e:
+        print("Erro ao enviar vídeo:", str(e))
+        return None
+
+
+
+def salvar_informacoes_filmagem(inicio, fim, duracao, url_video, caminho_video_local):
+    if url_video is None:
+        print("Erro: URL do vídeo é None, não será salvo no banco de dados")
+        return
+
+    try:
+        tamanho_mb = round(os.path.getsize(caminho_video_local) / (1024 * 1024), 2)
+        data = {
+            'inicio': inicio.isoformat(),
+            'fim': fim.isoformat(),
+            'duracao': duracao,
+            'url_video': url_video,
+            'data': inicio.date().isoformat(),
+            'hora_inicio': inicio.time().strftime('%H:%M:%S'),
+            'hora_fim': fim.time().strftime('%H:%M:%S'),
+            'evento': "acesso negado",
+            'dispositivo': "ESP32_CAM_01",
+            'enviado_com_sucesso': True,
+            'tamanho_arquivo_mb': tamanho_mb
+        }
+
+        res = supabase.table('filmagens').insert([data]).execute()
+
+        if hasattr(res, 'error') and res.error:
+            print("Erro ao salvar filmagem:", res.error)
+        else:
+            print("Filmagem registrada no Supabase.")
+
+    except Exception as e:
+        print("Erro ao salvar filmagem:", str(e))
+
+
+def on_message(client, userdata, msg):
+    global gravando
+    message = msg.payload.decode("utf-8").lower()
+    print(f"[MQTT] Mensagem recebida: {message}")
+
+    if message == "acesso negado" and not gravando:
+        gravando = True
+        threading.Thread(target=gerar_video, daemon=True).start()
+    elif message == "alerta cancelado, acesso liberado" and gravando:
+        gravando = False
 
 def gerar_frame():
     global frame_atual
     while True:
         if frame_atual is not None:
-            _, jpeg = cv2.imencode('.jpg', frame_atual)
-            if jpeg is not None:
-                yield (b'--frame\r\n'
-                        b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n\r\n')
+            _, jpeg = cv2.imencode('.jpg', frame_atual, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n\r\n')
+        time.sleep(0.033)  # ~30fps
 
 @app.route('/')
 def video_feed():
     return Response(gerar_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-def on_message(client, userdata, msg):
-    global gravando, hora_inicio, hora_fim
-    message = msg.payload.decode("utf-8").lower()
-    print(f"Mensagem recebida do tópico {msg.topic}: {message}")
-
-    if message == "acesso negado":
-        if not gravando: 
-            gravando = True
-            hora_inicio = time.time()  
-            print("Acesso negado! Iniciando detecção de pessoa...")
-            gerar_video()
-        else:
-            print("Detecção já está em andamento, ignorando mensagem repetida...")
-
-    elif message == "alerta cancelado, acesso liberado":
-        if gravando:
-            gravando = False
-            hora_fim = time.time() 
-            duracao = hora_fim - hora_inicio
-            print(f"Detecção encerrada. Duração total: {duracao:.2f} segundos")
-
 def salvar_link_ngrok(url):
     try:
-        response = supabase.table('ngrok_links').upsert(
-            {"id": 1, "url": url},  
-            on_conflict=["id"]      
+        supabase.table('ngrok_links').upsert(
+            {"id": 1, "url": url}, on_conflict=["id"]
         ).execute()
-        
-        if response.data:
-            print("Link ngrok salvo/atualizado no Supabase com sucesso")
-        else:
-            print("Erro ao salvar link: Resposta vazia do Supabase")
+        print("Link do ngrok salvo no Supabase.")
     except Exception as e:
-        print(f"Erro ao conectar ao Supabase: {e}")
-
+        print("Erro ao salvar o link:", e)
 
 def start_ngrok():
-    print ("Iniciando o Ngrok...")
-    ngrok_process = subprocess.Popen(['C:\\ngrok\\ngrok', 'http', '5000'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    time.sleep(4)
-
+    print("Iniciando ngrok...")
     try:
-        url = requests.get('http://localhost:4040/api/tunnels').json()
-        public_url = url['tunnels'][0]['public_url']
-        print(f"Seu servidor Flask está acessível em: {public_url}")
-    
-        salvar_link_ngrok(public_url)  # Corrigido
-    except Exception as e:
-        print("Erro ao obter URL do ngrok", e)
-
-def salvar_informacoes_filmagem(inicio, fim, duracao, url_video):
-    try:
-        response = supabase.table('filmagens').insert([{
-            'inicio': inicio,
-            'fim': fim,
-            'duracao': duracao,
-            'url_video': url_video
-        }]).execute() 
+        subprocess.Popen(['ngrok', 'http', '5000'], 
+                        stdout=subprocess.DEVNULL, 
+                        stderr=subprocess.DEVNULL)
+        
+        time.sleep(5)  
+        
+        response = requests.get('http://localhost:4040/api/tunnels', timeout=10)
         if response.status_code == 200:
-            print("Informações de filmagem salvas com sucesso no supabase")
+            public_url = response.json()['tunnels'][0]['public_url']
+            print("ngrok URL:", public_url)
+            salvar_link_ngrok(public_url)
         else:
-            print("Erro ao salvar filmagem no supabase", response)
+            print("Erro ao obter URL do ngrok:", response.text)
     except Exception as e:
-        print(f"Erro ao conectar ao Supabase: {e}") 
+        print("Erro ao iniciar ngrok:", str(e))
 
-client = paho.Client(client_id="", userdata=None, protocol=paho.MQTTv5, callback_api_version=paho.CallbackAPIVersion.VERSION2)
-client.on_message = on_message
-client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-client.username_pw_set(mqtt_username, mqtt_password)
+def conectar_mqtt():
+    client = paho.Client(protocol=paho.MQTTv5)
+    client.on_message = on_message
+    client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
+    client.username_pw_set(mqtt_username, mqtt_password)
+    
+    while True:
+        try:
+            client.connect(mqtt_cluster_url, 8883)
+            client.subscribe("alert", qos=0)
+            print("Conectado ao MQTT.")
+            return client
+        except Exception as e:
+            print(f"Tentando reconectar: {str(e)}")
+            time.sleep(5)
 
-print("Tentando conectar ao servidor MQTT...")
-while True:
-    try:
-        client.connect(mqtt_cluster_url, 8883)
-        print("Conectado ao servidor MQTT com sucesso!")
-        client.subscribe("alert", qos=0)
-        break
-    except Exception as e:
-        print(f"Erro ao conectar: {e}. Tentando novamente em 5 segundos...")
-        time.sleep(5)
-
-# Rodar o Flask em uma thread separada
-flask_thread = threading.Thread(target=app.run, kwargs={"host": "0.0.0.0", "port": 5000, "threaded": True})
-flask_thread.start()
-
-# Iniciar o ngrok
-ngrok_thread = threading.Thread(target=start_ngrok)  
-ngrok_thread.start()
-
-client.loop_forever()
+if __name__ == '__main__':
+    # Criar diretório para gravações se não existir
+    os.makedirs(os.path.join(BASE_DIR, "gravacoes"), exist_ok=True)
+    
+    # Iniciar serviços em threads separadas
+    threading.Thread(target=app.run, 
+                    kwargs={"host": "0.0.0.0", "port": 5000, "threaded": True},
+                    daemon=True).start()
+    
+    #threading.Thread(target=start_ngrok, daemon=True).start()
+    
+    mqtt_client = conectar_mqtt()
+    mqtt_client.loop_forever()
