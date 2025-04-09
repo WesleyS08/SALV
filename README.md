@@ -56,7 +56,7 @@ O software é responsável pelo processamento dos dados, incluindo a detecção 
 
 | **Tecnologia**              | **Descrição**                                                               |
 |-----------------------------|:----------------------------------------------------------------------------:|
-| **OpenCV**                  | Biblioteca para detecção de movimento e faces em tempo real.                |
+| **YOLOv8 e  MediaPipe**                  | Biblioteca para detecção de movimento e faces em tempo real.                |
 | **Python**                  | Linguagem principal para controle e análise das imagens e dados.           |
 | **Supabase**                | Banco de dados e serviço de autenticação segura.                            |
 | **React Native**            | Framework para o desenvolvimento do aplicativo móvel.                       |
@@ -103,9 +103,21 @@ Com o objetivo de uma melhor organização e gestão das mensagens, nosso MQTT u
 | **Acesso/Permitido**   | Tópico responsável por enviar atualizações à API, sinalizando que o acesso foi autorizado. |
 | **Acesso/Negado**      | Tópico que aciona os protocolos de segurança do sistema, como início de gravação, alertas e outras medidas de segurança, caso o acesso seja negado. |
 
+
+---
 #### ° **API RESTful para Integração de Funcionalidades**
 
-escrever o texto depois 
+A API RESTful desenvolvida para o SALV (Sistema de Alerta Laboratorial com Visão) desempenha um papel fundamental na integração e comunicação entre os diversos componentes do sistema. Com um design orientado a serviços, a API permite que diferentes módulos, como sensores de movimento, câmeras e a interface do aplicativo móvel, interajam de forma eficiente e segura.
+ Você pode acessar a [API do SALV](https://github.com/WesleyS08/API_SALV).
+
+| **Características**            | **Descrição**                                                                 |
+|-----------------------|:-------------------------------------------------------------------------------:|
+| Endpoints Bem Definidos       | A API oferece endpoints específicos para funcionalidades como autenticação, consulta de status do sistema e gerenciamento de eventos, garantindo acesso simples e direto aos dados. |
+| Autenticação Segura   | A segurança é uma prioridade, com mecanismos robustos de autenticação que utilizam tokens JWT (JSON Web Tokens) para validar usuários e proteger informações sensíveis.|
+| Comunicação em Tempo Real | Integração com o protocolo MQTT permite comunicação em tempo real entre dispositivos, com eventos como detecção de movimento sendo enviados imediatamente ao backend.|
+| Gerenciamento de Eventos | A API registra e gerencia eventos adequadamente, acionando gravação de vídeos e notificações ao detectar atividades não autorizadas, além de registrar detalhes no banco de dados.|
+| Escalabilidade e Manutenção | Com uma arquitetura modular, a API é facilmente escalável, facilitando a adição de novas funcionalidades e manutenção do sistema para atender às necessidades dos usuários.|
+
 ---
 
 
