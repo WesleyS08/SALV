@@ -278,16 +278,71 @@ def salvar_informacoes_filmagem(inicio, fim, duracao, url_video, caminho_video_l
     except Exception as e:
         print("Erro ao salvar filmagem:", str(e))
 
+
 def on_message(client, userdata, msg):
+
     global gravando
+
     message = msg.payload.decode("utf-8").lower()
+
     print(f"[MQTT] Mensagem recebida: {message}")
 
+
+
     if message == "acesso negado" and not gravando:
+
         gravando = True
+
         threading.Thread(target=gerar_video, daemon=True).start()
+
+        try:
+
+            # Atualiza o campo AoVivo para true
+
+            res = supabase.table('ngrok_links').update({"AoVivo": True}).eq("id", 1).execute()
+
+
+
+            # Verificando se a resposta foi bem-sucedida
+
+            if res.data:
+
+                print("Campo 'AoVivo' atualizado para True na tabela ngrok_links.")
+
+            else:
+
+                print(f"Erro ao atualizar 'AoVivo' para True: {res.error}")
+
+        except Exception as e:
+
+            print(f"Erro ao atualizar 'AoVivo' ou salvar informações da filmagem: {e}")
+
     elif message == "alerta cancelado, acesso liberado" and gravando:
+
         gravando = False
+
+        try:
+
+            # Atualiza o campo AoVivo para False
+
+            res = supabase.table('ngrok_links').update({"AoVivo": False}).eq("id", 1).execute()
+
+
+
+            # Verificando se a resposta foi bem-sucedida
+
+            if res.data:
+
+                print("Campo 'AoVivo' atualizado para False na tabela ngrok_links.")
+
+            else:
+
+                print(f"Erro ao atualizar 'AoVivo' para False: {res.error}")
+
+        except Exception as e:
+
+            print(f"Erro ao atualizar 'AoVivo' ou salvar informações da filmagem: {e}")
+
 
 def gerar_frame():
     global frame_atual
