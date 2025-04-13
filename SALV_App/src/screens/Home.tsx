@@ -319,7 +319,7 @@ const Home = ({ navigation }: any) => {
 
             {/* Mensagem do Modal */}
             <Text style={[styles.modalText, themeStyles.secondaryText]}>
-              Se lembre de cadastrar o cartao ou a teg para registrar os acessos e filmagens.
+              Se lembre de cadastrar o cartao ou a tag para registrar os acessos e filmagens.
             </Text>
 
             {/* Botão de Fechar */}
