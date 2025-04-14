@@ -47,7 +47,7 @@ def gerar_video():
             time.sleep(5) 
             
     # Configuração da câmera
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -67,6 +67,13 @@ def gerar_video():
 
     COR_PESSOA = (61, 0, 134)
     COR_TEXTO = (61, 0, 134)
+    
+    frame_counter = 0  
+    last_detection_time = time.time()
+    detection_interval = 0.1  # 100ms entre atualizações para o Flask
+    
+    last_person_detections = []
+    last_face_detection = None
 
     with mp_face_detection.FaceDetection(
         model_selection=0,
@@ -83,55 +90,78 @@ def gerar_video():
             frame = cv2.resize(frame, (1280, 720))
             display_frame = frame.copy()
             
-            results = yolo_model(frame, imgsz=640, conf=0.6)[0]
-            pessoas_detectadas = 0
+            if frame_counter % 2 == 0:
+                results = yolo_model(frame, imgsz=640, conf=0.6)[0]
+                pessoas_detectadas = 0
+                current_detections = []
 
-            for det in results.boxes:
-                cls = int(det.cls.item())
-                if cls == 0:  
-                    pessoas_detectadas += 1
-                    x1, y1, x2, y2 = map(int, det.xyxy[0])
-                    
+                for det in results.boxes:
+                    cls = int(det.cls.item())
+                    if cls == 0:  
+                        pessoas_detectadas += 1
+                        x1, y1, x2, y2 = map(int, det.xyxy[0])
+                        current_detections.append((x1, y1, x2, y2))
+                        
+                        cv2.rectangle(display_frame, (x1, y1), (x2, y2), COR_PESSOA, 2)
+                        cv2.putText(display_frame, "PESSOA", (x1, y1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
+
+                        body_roi = frame[y1:y2, x1:x2]
+                        if body_roi.size > 0:
+                            rgb_roi = cv2.cvtColor(body_roi, cv2.COLOR_BGR2RGB)
+                            face_results = face_detection.process(rgb_roi)
+
+                            if face_results.detections:
+                                for detection in face_results.detections:
+                                    bbox = detection.location_data.relative_bounding_box
+                                    ih, iw = body_roi.shape[:2]
+                                    fx, fy = int(bbox.xmin * iw), int(bbox.ymin * ih)
+                                    fw, fh = int(bbox.width * iw), int(bbox.height * ih)
+                                    
+                                    abs_fx, abs_fy = x1 + fx, y1 + fy
+                                    
+                                    face_close_up = frame[
+                                        max(0, abs_fy-30):min(720, abs_fy+fh+30), 
+                                        max(0, abs_fx-30):min(1280, abs_fx+fw+30)
+                                    ]
+                                    
+                                    try:
+                                        face_close_up = cv2.resize(face_close_up, (200, 200))
+                                        display_frame[20:220, 1060:1260] = face_close_up
+                                        cv2.rectangle(display_frame, (1059, 19), (1261, 221), COR_PESSOA, 2)
+                                        cv2.putText(display_frame, "Rosto", (1070, 30), 
+                                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
+                                        last_face_detection = face_close_up
+                                    except Exception as e:
+                                        print(f"Erro no close-up: {e}")
+                
+                last_person_detections = current_detections
+            else:
+                for (x1, y1, x2, y2) in last_person_detections:
                     cv2.rectangle(display_frame, (x1, y1), (x2, y2), COR_PESSOA, 2)
                     cv2.putText(display_frame, "PESSOA", (x1, y1 - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
+                
+                if last_face_detection is not None:
+                    display_frame[20:220, 1060:1260] = last_face_detection
+                    cv2.rectangle(display_frame, (1059, 19), (1261, 221), COR_PESSOA, 2)
+                    cv2.putText(display_frame, "Rosto", (1070, 30), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
 
-                    body_roi = frame[y1:y2, x1:x2]
-                    if body_roi.size > 0:
-                        rgb_roi = cv2.cvtColor(body_roi, cv2.COLOR_BGR2RGB)
-                        face_results = face_detection.process(rgb_roi)
-
-                        if face_results.detections:
-                            for detection in face_results.detections:
-                                bbox = detection.location_data.relative_bounding_box
-                                ih, iw = body_roi.shape[:2]
-                                fx, fy = int(bbox.xmin * iw), int(bbox.ymin * ih)
-                                fw, fh = int(bbox.width * iw), int(bbox.height * ih)
-                                
-                                abs_fx, abs_fy = x1 + fx, y1 + fy
-                                
-                                face_close_up = frame[
-                                    max(0, abs_fy-30):min(720, abs_fy+fh+30), 
-                                    max(0, abs_fx-30):min(1280, abs_fx+fw+30)
-                                ]
-                                
-                                try:
-                                    face_close_up = cv2.resize(face_close_up, (200, 200))
-                                    display_frame[20:220, 1060:1260] = face_close_up
-                                    cv2.rectangle(display_frame, (1059, 19), (1261, 221), COR_PESSOA, 2)
-                                    cv2.putText(display_frame, "Rosto", (1070, 30), 
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
-                                except Exception as e:
-                                    print(f"Erro no close-up: {e}")
-
-            frame_atual = display_frame.copy()
+            frame_counter += 1
+            
+            current_time = time.time()
+            if current_time - last_detection_time >= detection_interval:
+                frame_atual = display_frame.copy()
+                last_detection_time = current_time
+                
             video_writer.write(display_frame)
             
             current_fps = 1.0 / (time.time() - start_time)
             cv2.putText(display_frame, f"FPS: {current_fps:.1f}", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
-            print(f"Pessoas: {pessoas_detectadas} | FPS: {current_fps:.1f}")
+            print(f"Pessoas: {len(last_person_detections)} | FPS: {current_fps:.1f}")
             time.sleep(max(0, 0.033 - (time.time() - start_time)))  
 
     cap.release()
@@ -326,10 +356,6 @@ def on_message(client, userdata, msg):
             # Atualiza o campo AoVivo para False
 
             res = supabase.table('ngrok_links').update({"AoVivo": False}).eq("id", 1).execute()
-
-
-
-            # Verificando se a resposta foi bem-sucedida
 
             if res.data:
 
