@@ -1,190 +1,152 @@
 import os
 import cv2
 import time
-import numpy as np
-import paho.mqtt.client as paho
-import subprocess
 import threading
+import subprocess
 import requests
-from paho import mqtt
-from dotenv import load_dotenv
-from supabase import create_client, Client
-from flask import Flask, Response
+import numpy as np
 from datetime import datetime
 from ultralytics import YOLO
 import mediapipe as mp
+import paho.mqtt.client as mqtt
+from dotenv import load_dotenv
+from obsws_python import ReqClient
+import psutil
+from supabase import create_client, Client
 
+
+# Configurações
 load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-mqtt_username = os.getenv("MQTT_USERNAME")
-mqtt_password = os.getenv("MQTT_PASSWORD")
-mqtt_cluster_url = os.getenv("MQTT_CLUSTER_URL")
+# Configura OBS
+OBS_WS_HOST = "192.168.1.6"
+OBS_WS_PORT = 4455
+OBS_WS_PASSWORD = os.getenv("OBS_WS_PASSWORD")
+NOME_CENA = "Detecção"
+
+# Banco de dados
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
-
 supabase = create_client(supabase_url, supabase_key)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-app = Flask(__name__)
 
+# Inicializa variáveis
+obs = None
+grava = False
+transmite = False
+fps = 30  # Definindo a variável fps global
+
+# Modelos
 yolo_model = YOLO(os.path.join(BASE_DIR, "models", "yolov8n.pt"))
-mp_face_detection = mp.solutions.face_detection
-face_detector = mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.5)
+mp_face = mp.solutions.face_detection
 
-gravando = False
-hora_inicio = None
-hora_fim = None
-video_writer = None
-caminho_video_local = None
-frame_atual = None
+def is_obs_running():
+    for proc in psutil.process_iter(attrs=['pid', 'name']):
+        if proc.info['name'] == 'obs64.exe':
+            return True
+    return False
 
-def gerar_video():
-    global gravando, hora_inicio, hora_fim, video_writer, caminho_video_local, frame_atual
-    cap = None
-    while cap is None:
-        cap = cv2.VideoCapture(1)
-        if not cap.isOpened():
-            print("ERRO: Câmera não disponível, tentando novamente...")
-            time.sleep(5) 
-            
-    # Configuração da câmera
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
-    if not cap.isOpened():
-        print("ERRO: Câmera não disponível!")
-        return
-
-    print("Iniciando gravação...")
-    hora_inicio = datetime.now()
-    nome_arquivo = f"gravacao_{hora_inicio.strftime('%Y%m%d_%H%M%S')}.mp4"
-    caminho_video_local = os.path.join(BASE_DIR, "gravacoes", nome_arquivo)
-    os.makedirs(os.path.dirname(caminho_video_local), exist_ok=True)
-
-    fps = 30.0
-    codec = cv2.VideoWriter_fourcc(*'mp4v')
-    video_writer = cv2.VideoWriter(caminho_video_local, codec, fps, (1280, 720))
-
-    COR_PESSOA = (61, 0, 134)
-    COR_TEXTO = (61, 0, 134)
-    
-    frame_counter = 0  
-    last_detection_time = time.time()
-    detection_interval = 0.1  # 100ms entre atualizações para o Flask
-    
-    last_person_detections = []
-    last_face_detection = None
-
-    with mp_face_detection.FaceDetection(
-        model_selection=0,
-        min_detection_confidence=0.5
-    ) as face_detection:
-        
-        while gravando:
-            start_time = time.time()
-            
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            frame = cv2.resize(frame, (1280, 720))
-            display_frame = frame.copy()
-            
-            if frame_counter % 2 == 0:
-                results = yolo_model(frame, imgsz=640, conf=0.6)[0]
-                pessoas_detectadas = 0
-                current_detections = []
-
-                for det in results.boxes:
-                    cls = int(det.cls.item())
-                    if cls == 0:  
-                        pessoas_detectadas += 1
-                        x1, y1, x2, y2 = map(int, det.xyxy[0])
-                        current_detections.append((x1, y1, x2, y2))
-                        
-                        cv2.rectangle(display_frame, (x1, y1), (x2, y2), COR_PESSOA, 2)
-                        cv2.putText(display_frame, "PESSOA", (x1, y1 - 10),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
-
-                        body_roi = frame[y1:y2, x1:x2]
-                        if body_roi.size > 0:
-                            rgb_roi = cv2.cvtColor(body_roi, cv2.COLOR_BGR2RGB)
-                            face_results = face_detection.process(rgb_roi)
-
-                            if face_results.detections:
-                                for detection in face_results.detections:
-                                    bbox = detection.location_data.relative_bounding_box
-                                    ih, iw = body_roi.shape[:2]
-                                    fx, fy = int(bbox.xmin * iw), int(bbox.ymin * ih)
-                                    fw, fh = int(bbox.width * iw), int(bbox.height * ih)
-                                    
-                                    abs_fx, abs_fy = x1 + fx, y1 + fy
-                                    
-                                    face_close_up = frame[
-                                        max(0, abs_fy-30):min(720, abs_fy+fh+30), 
-                                        max(0, abs_fx-30):min(1280, abs_fx+fw+30)
-                                    ]
-                                    
-                                    try:
-                                        face_close_up = cv2.resize(face_close_up, (200, 200))
-                                        display_frame[20:220, 1060:1260] = face_close_up
-                                        cv2.rectangle(display_frame, (1059, 19), (1261, 221), COR_PESSOA, 2)
-                                        cv2.putText(display_frame, "Rosto", (1070, 30), 
-                                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
-                                        last_face_detection = face_close_up
-                                    except Exception as e:
-                                        print(f"Erro no close-up: {e}")
-                
-                last_person_detections = current_detections
-            else:
-                for (x1, y1, x2, y2) in last_person_detections:
-                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), COR_PESSOA, 2)
-                    cv2.putText(display_frame, "PESSOA", (x1, y1 - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
-                
-                if last_face_detection is not None:
-                    display_frame[20:220, 1060:1260] = last_face_detection
-                    cv2.rectangle(display_frame, (1059, 19), (1261, 221), COR_PESSOA, 2)
-                    cv2.putText(display_frame, "Rosto", (1070, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
-
-            frame_counter += 1
-            
-            current_time = time.time()
-            if current_time - last_detection_time >= detection_interval:
-                frame_atual = display_frame.copy()
-                last_detection_time = current_time
-                
-            video_writer.write(display_frame)
-            
-            current_fps = 1.0 / (time.time() - start_time)
-            cv2.putText(display_frame, f"FPS: {current_fps:.1f}", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            print(f"Pessoas: {len(last_person_detections)} | FPS: {current_fps:.1f}")
-            time.sleep(max(0, 0.033 - (time.time() - start_time)))  
-
-    cap.release()
-    video_writer.release()
-    print("Gravação encerrada.")
-
-    hora_fim = datetime.now()
-    duracao = (hora_fim - hora_inicio).total_seconds()
-    url_video = enviar_video_supabase(caminho_video_local)
-    salvar_informacoes_filmagem(hora_inicio, hora_fim, duracao, url_video, caminho_video_local)
-
-
-def verificar_video_valido(caminho):
+def iniciar_obs():
     try:
-        cap = cv2.VideoCapture(caminho)
+        if is_obs_running():
+            print("OBS já está em execução.")
+            return True
+
+        obs_path = r"C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"
+        if not os.path.exists(obs_path):
+            raise FileNotFoundError(f"OBS não encontrado: {obs_path}")
+
+        subprocess.run(["taskkill", "/f", "/im", "obs64.exe"], shell=True,
+                      stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+        time.sleep(2)
+
+        subprocess.Popen([obs_path, "--startvirtualcam", "--minimize-to-tray", "--lang", "pt-BR", "--disable-updater"])
+        print("OBS iniciado!")
+        time.sleep(10)
+        return True
+
+    except Exception as e:
+        print(f"Erro ao iniciar OBS: {e}")
+        time.sleep(5)
+        return False
+
+def conectar_obs():
+    global obs
+    try:
+        obs = ReqClient(host=OBS_WS_HOST, port=OBS_WS_PORT, password=OBS_WS_PASSWORD)
+        print("Conectado ao OBS via WebSocket!")
+        return True
+    except Exception as e:
+        print(f"Erro ao conectar OBS: {e}")
+        return False
+
+def iniciar_transmissao():
+    global transmite
+    try:
+        status = obs.get_stream_status()
+        if not status.output_active:
+            cenas = obs.get_scene_list().scenes
+            nomes_cenas = [scene['sceneName'] for scene in cenas]
+
+            if NOME_CENA in nomes_cenas:
+                obs.set_current_program_scene(NOME_CENA)
+                print(f"Mudando para cena: {NOME_CENA}")
+            else:
+                print(f"Atenção: Cena '{NOME_CENA}' não encontrada! Mantendo cena atual.")
+
+            obs.start_stream()
+            transmite = True
+            atualizar_ao_vivo_no_db(True)  
+            print("🎥 Iniciando transmissão para a live 'segurança 24 horas' no YouTube!")
+        else:
+            print("OBS já está transmitindo!")
+
+    except Exception as e:
+        print(f"Erro ao iniciar transmissão: {e}")
+
+def parar_transmissao():
+    global transmite
+    try:
+        if transmite:
+            obs.stop_stream()
+            transmite = False
+            res = supabase.table('ngrok_links').update({"AoVivo": False}).eq("id", 1).execute()
+            print("Transmissão encerrada!")
+    except Exception as e:
+        print(f"Erro ao parar transmissão: {e}")
+
+def pausar_transmissao():
+    global transmite
+    if transmite:
+        parar_transmissao() 
+        print("Transmissão pausada devido à parada do modelo.")
+    else:
+        print("A transmissão já está pausada.")
+
+def retomar_transmissao():
+    global transmite
+    if not transmite:
+        iniciar_transmissao()  
+        print("Retomando transmissão após reinício do modelo.")
+    else:
+        print("A transmissão já está em andamento.")
+
+def atualizar_ao_vivo_no_db(status: bool):
+    try:
+        res = supabase.table('ngrok_links').update({"AoVivo": True}).eq("id", 1).execute()
+        print(f"Banco de dados atualizado com status AoVivo: {status}")
+    except Exception as e:
+        print(f"Erro ao atualizar banco de dados: {e}")
+
+def verificar_video_valido(caminho_video):
+    try:
+        cap = cv2.VideoCapture(caminho_video)
         if not cap.isOpened():
             return False
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         cap.release()
-        return width > 0 and height > 0 and fps > 0
-    except:
+        return frame_count > 0
+    except Exception:
         return False
 
 def converter_para_mp4_compativel(caminho_entrada, caminho_saida):
@@ -193,19 +155,14 @@ def converter_para_mp4_compativel(caminho_entrada, caminho_saida):
             'ffmpeg',
             '-i', caminho_entrada,
             '-c:v', 'libx264',
-            '-profile:v', 'high',
-            '-pix_fmt', 'yuv420p',
-            '-preset', 'fast',
-            '-crf', '23',
             '-c:a', 'aac',
-            '-b:a', '128k',
-            '-movflags', '+faststart',
+            '-strict', 'experimental',
             caminho_saida
         ]
-        subprocess.run(command, check=True)
-        return True
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return os.path.exists(caminho_saida)
     except subprocess.CalledProcessError as e:
-        print(f"❌ Falha na conversão do vídeo: {str(e)}")
+        print(f"❌ Erro na conversão: {e.stderr.decode()}")
         return False
 
 def enviar_video_supabase(caminho_local):
@@ -227,13 +184,12 @@ def enviar_video_supabase(caminho_local):
         print(f"📤 Enviando {nome_arquivo} (Tamanho: {tamanho_mb:.2f} MB)")
 
         upload_options = {
-            "content-type": "video/mp4",
+            "content-type": "video/x-matroska",  # Tipo MIME para MKV
             "cache-control": "3600",
             "x-upsert": "true"
         }
 
-
-        chunk_size = 1024 * 1024 * 5  
+        chunk_size = 1024 * 1024 * 5  # 5 MB por chunk
         file_size = os.path.getsize(caminho_local)
 
         with open(caminho_local, "rb") as f:
@@ -256,7 +212,7 @@ def enviar_video_supabase(caminho_local):
             return None
 
         url_publica = supabase.storage.from_("filmagens").get_public_url(f"gravacoes/{nome_arquivo}")
-        url_publica += f"?t={int(time.time())}"
+        url_publica += f"?t={int(time.time())}"  # Evita cache
 
         try:
             head_response = requests.head(url_publica, timeout=10)
@@ -273,9 +229,6 @@ def enviar_video_supabase(caminho_local):
     except Exception as e:
         print(f"❌ Erro crítico no upload: {str(e)}")
         return None
-
-
-
 
 def salvar_informacoes_filmagem(inicio, fim, duracao, url_video, caminho_video_local):
     if url_video is None:
@@ -308,132 +261,179 @@ def salvar_informacoes_filmagem(inicio, fim, duracao, url_video, caminho_video_l
     except Exception as e:
         print("Erro ao salvar filmagem:", str(e))
 
+def processar_deteccoes():
+    global grava
 
-def on_message(client, userdata, msg):
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
-    global gravando
+    if not cap.isOpened():
+        print("Erro: Câmera não disponível!")
+        return
 
-    message = msg.payload.decode("utf-8").lower()
+    print("Iniciando gravação...")
+    hora_inicio = datetime.now()
+    nome_arquivo = f"gravacao_{hora_inicio.strftime('%Y%m%d_%H%M%S')}.mkv"
+    caminho_video = os.path.join(BASE_DIR, "gravacoes", nome_arquivo)
+    os.makedirs(os.path.dirname(caminho_video), exist_ok=True)
 
-    print(f"[MQTT] Mensagem recebida: {message}")
+    codec = cv2.VideoWriter_fourcc(*'XVID')
+    gravador = cv2.VideoWriter(caminho_video, codec, fps, (1280, 720))
 
+    COR_PESSOA = (61, 0, 134)
+    COR_TEXTO = (61, 0, 134)
 
+    frame_counter = 0
+    detections = []
+    face_img = None
 
-    if message == "acesso negado" and not gravando:
+    with mp_face.FaceDetection(model_selection=0, min_detection_confidence=0.5) as face_detection:
+        while grava:
+            start_time = time.time()
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        gravando = True
+            frame = cv2.resize(frame, (1280, 720))
+            display = frame.copy()
 
-        threading.Thread(target=gerar_video, daemon=True).start()
+            if frame_counter % 2 == 0:
+                results = yolo_model(frame, imgsz=640, conf=0.6)[0]
+                detections = []
 
-        try:
+                for det in results.boxes:
+                    cls = int(det.cls.item())
+                    if cls == 0:
+                        x1, y1, x2, y2 = map(int, det.xyxy[0])
+                        detections.append((x1, y1, x2, y2))
+                        cv2.rectangle(display, (x1, y1), (x2, y2), COR_PESSOA, 2)
+                        cv2.putText(display, "PESSOA", (x1, y1 - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
 
-            # Atualiza o campo AoVivo para true
+                        corpo = frame[y1:y2, x1:x2]
+                        if corpo.size > 0:
+                            rgb = cv2.cvtColor(corpo, cv2.COLOR_BGR2RGB)
+                            faces = face_detection.process(rgb)
 
-            res = supabase.table('ngrok_links').update({"AoVivo": True}).eq("id", 1).execute()
+                            if faces.detections:
+                                for f in faces.detections:
+                                    bbox = f.location_data.relative_bounding_box
+                                    ih, iw = corpo.shape[:2]
+                                    fx, fy, fw, fh = int(bbox.xmin * iw), int(bbox.ymin * ih), int(bbox.width * iw), int(bbox.height * ih)
 
+                                    abs_x, abs_y = x1 + fx, y1 + fy
 
-
-            # Verificando se a resposta foi bem-sucedida
-
-            if res.data:
-
-                print("Campo 'AoVivo' atualizado para True na tabela ngrok_links.")
-
+                                    try:
+                                        face_crop = frame[max(0, abs_y-30):min(720, abs_y+fh+30),
+                                                        max(0, abs_x-30):min(1280, abs_x+fw+30)]
+                                        face_img = cv2.resize(face_crop, (200, 200))
+                                        display[20:220, 1060:1260] = face_img
+                                        cv2.rectangle(display, (1059, 19), (1261, 221), COR_PESSOA, 2)
+                                        cv2.putText(display, "Rosto", (1070, 30),
+                                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
+                                    except Exception as e:
+                                        print(f"Erro no rosto: {e}")
             else:
+                for (x1, y1, x2, y2) in detections:
+                    cv2.rectangle(display, (x1, y1), (x2, y2), COR_PESSOA, 2)
+                    cv2.putText(display, "PESSOA", (x1, y1 - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
 
-                print(f"Erro ao atualizar 'AoVivo' para True: {res.error}")
+                if face_img is not None:
+                    display[20:220, 1060:1260] = face_img
+                    cv2.rectangle(display, (1059, 19), (1261, 221), COR_PESSOA, 2)
+                    cv2.putText(display, "Rosto", (1070, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COR_TEXTO, 1)
 
-        except Exception as e:
+            frame_counter += 1
 
-            print(f"Erro ao atualizar 'AoVivo' ou salvar informações da filmagem: {e}")
+            gravador.write(display)
 
-    elif message == "alerta cancelado, acesso liberado" and gravando:
+            fps_calc = 1.0 / (time.time() - start_time)
 
-        gravando = False
+            # Overlay de status
+            status_text = "Gravando..."
+            if transmite:
+                status_text = "Transmitindo: Seguranca 24 horas"
 
-        try:
+            overlay = display.copy()
+            cv2.rectangle(overlay, (0, 0), (1280, 40), (0, 0, 0), -1)
+            alpha = 0.4
+            cv2.addWeighted(overlay, alpha, display, 1 - alpha, 0, display)
+            cv2.putText(display, status_text, (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
-            # Atualiza o campo AoVivo para False
+            cv2.putText(display, f"FPS: {fps_calc:.1f}", (10, 70),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-            res = supabase.table('ngrok_links').update({"AoVivo": False}).eq("id", 1).execute()
+            cv2.imshow('Deteccao de Seguranca - OBS', display)
+            if cv2.waitKey(1) == 27:
+                grava = False
 
-            if res.data:
+            time.sleep(max(0, 0.033 - (time.time() - start_time)))
 
-                print("Campo 'AoVivo' atualizado para False na tabela ngrok_links.")
+    cap.release()
+    gravador.release()
+    cv2.destroyAllWindows()
 
-            else:
+    # Envia o vídeo para o Supabase após a gravação
+    if os.path.exists(caminho_video):
+        url_video = enviar_video_supabase(caminho_video)
+        hora_fim = datetime.now()
+        duracao = (hora_fim - hora_inicio).total_seconds()
+        salvar_informacoes_filmagem(hora_inicio, hora_fim, duracao, url_video, caminho_video)
 
-                print(f"Erro ao atualizar 'AoVivo' para False: {res.error}")
+    if grava:
+        retomar_transmissao()  # Retoma a transmissão quando o modelo voltar
 
-        except Exception as e:
+def on_mqtt_message(client, userdata, msg):
+    global grava
 
-            print(f"Erro ao atualizar 'AoVivo' ou salvar informações da filmagem: {e}")
+    mensagem = msg.payload.decode().lower()
+    print(f"MQTT: {mensagem}")
 
+    if "acesso negado" in mensagem and not grava:
+        grava = True
+        threading.Thread(target=processar_deteccoes, daemon=True).start()
+        threading.Timer(3, iniciar_transmissao).start()
+    elif "alerta cancelado, acesso liberado" in mensagem and grava:
+        grava = False
+        parar_transmissao()
 
-def gerar_frame():
-    global frame_atual
-    while True:
-        if frame_atual is not None:
-            _, jpeg = cv2.imencode('.jpg', frame_atual, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
-            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n\r\n')
-        time.sleep(0.033)  
+def main():
+    iniciar_obs()
 
-@app.route('/')
-def video_feed():
-    return Response(gerar_frame(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    for _ in range(10):
+        if conectar_obs():
+            break
+        print("Tentando conectar novamente...")
+        time.sleep(2)
+    else:
+        print("Não foi possível conectar ao OBS!")
+        return
 
-def salvar_link_ngrok(url):
+    client = mqtt.Client()
+    client.username_pw_set(os.getenv("MQTT_USERNAME"), os.getenv("MQTT_PASSWORD"))
+    client.tls_set()
+    client.on_message = on_mqtt_message
+
     try:
-        supabase.table('ngrok_links').upsert(
-            {"id": 1, "url": url}, on_conflict=["id"]
-        ).execute()
-        print("Link do ngrok salvo no Supabase.")
-    except Exception as e:
-        print("Erro ao salvar o link:", e)
+        client.connect(os.getenv("MQTT_CLUSTER_URL"), 8883)
+        client.subscribe("alert")
+        print("Conectado ao MQTT. Aguardando mensagens...")
+        client.loop_forever()
+    except KeyboardInterrupt:
+        print("\nEncerrando...")
+    finally:
+        if grava:
+            grava = False
+            time.sleep(1)
+        if transmite:
+            parar_transmissao()
+        if obs:
+            obs.disconnect()
+        client.disconnect()
 
-def start_ngrok():
-    print("Iniciando ngrok...")
-    try:
-        subprocess.Popen(['ngrok', 'http', '5000'], 
-                        stdout=subprocess.DEVNULL, 
-                        stderr=subprocess.DEVNULL)
-        
-        time.sleep(5)  
-        
-        response = requests.get('http://localhost:4040/api/tunnels', timeout=10)
-        if response.status_code == 200:
-            public_url = response.json()['tunnels'][0]['public_url']
-            print("ngrok URL:", public_url)
-            salvar_link_ngrok(public_url)
-        else:
-            print("Erro ao obter URL do ngrok:", response.text)
-    except Exception as e:
-        print("Erro ao iniciar ngrok:", str(e))
-
-def conectar_mqtt():
-    client = paho.Client(protocol=paho.MQTTv5)
-    client.on_message = on_message
-    client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-    client.username_pw_set(mqtt_username, mqtt_password)
-    
-    while True:
-        try:
-            client.connect(mqtt_cluster_url, 8883)
-            client.subscribe("alert", qos=0)
-            print("Conectado ao MQTT.")
-            return client
-        except Exception as e:
-            print(f"Tentando reconectar: {str(e)}")
-            time.sleep(5)
-
-if __name__ == '__main__':
-    os.makedirs(os.path.join(BASE_DIR, "gravacoes"), exist_ok=True)
-    
-    threading.Thread(target=app.run, 
-                    kwargs={"host": "0.0.0.0", "port": 5000, "threaded": True},
-                    daemon=True).start()
-    
-    threading.Thread(target=start_ngrok, daemon=True).start()
-    
-    mqtt_client = conectar_mqtt()
-    mqtt_client.loop_forever()
+if __name__ == "__main__":
+    main()
