@@ -4,6 +4,8 @@ import { Image } from 'react-native';
 import { useUserData } from '../contexts/useUserData';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../Global/DarkModeContext';
+import { Linking } from 'react-native';
+
 
 const AoVivo = () => {
     const { isDarkMode } = useDarkMode();
@@ -11,6 +13,10 @@ const AoVivo = () => {
   
     const { user } = useAuth();
     const { userData } = useUserData(user);
+    const handlePress = () => {
+        Linking.openURL('https://9961-2804-14c-1c2-8e38-d16e-ce3-da16-9ffa.ngrok-free.app ');
+      };
+  
     
     return (
         <View style={[styles.container, themeStyles.container]}>
@@ -50,11 +56,33 @@ const AoVivo = () => {
             <Text style={[styles.text1, themeStyles.text]}>
                 Quando houver algum movimento, você será notificado e poderá visualizar o movimento.
             </Text>
+            <Text style={[styles.link3, themeStyles.link3]}>
+                Para assistir à transmissão ao vivo, você precisa acessar o link e confirmar:
+{' '}
+                <Text style={styles.link} onPress={(handlePress)}>
+                    clique aqui
+                </Text>
+                </Text>
+    
         </View>
     );
 };
 
 const styles = StyleSheet.create({
+    link3: {
+        fontSize: 16,
+        color: '#000',
+        fontWeight: 'bold',
+        marginTop: 60,
+        textAlign: 'center',
+        width: '80%',
+        alignSelf: 'center',
+    },
+    link: {
+        color: 'blue',
+        fontWeight: 'bold',
+        textDecorationLine: 'underline'
+      },
     container: {
         flex: 1,
         padding: 20,
@@ -99,6 +127,15 @@ const styles = StyleSheet.create({
         height: 378,
         borderRadius: 14,
         backgroundColor: "#D9D9D9",
+        shadowColor: "#000",       // Cor da sombra
+        shadowOffset: {
+            width: 0,            // Deslocamento horizontal
+            height: 2,           // Deslocamento vertical
+        },
+        shadowOpacity: 0.25,      // Opacidade (0 a 1)
+        shadowRadius: 3.84,       // Raio do borrão
+        // Sombra para Android
+        elevation: 5,            // Nível de elevação (Android)
     },
     img: {
         width: '95%',
@@ -147,6 +184,9 @@ const darkStyles = StyleSheet.create({
     },
     secondaryText: {
         color: '#bdc3c7',
+    },
+    link3:{
+        color: '#ffffff',
     }
 });
 
@@ -165,6 +205,9 @@ const lightStyles = StyleSheet.create({
     },
     secondaryText: {
         color: '#7f8c8d',
+    }, 
+    link3:{
+        color: '#2c3e50',
     }
 });
 
