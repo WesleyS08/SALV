@@ -1,17 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  Image,
-  SafeAreaView,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  FlatList,
-  Linking
-} from 'react-native';
+import { View, Text, StyleSheet, Modal, Image, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, Linking} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/useUserData';
@@ -21,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import moment from 'moment';
 import 'moment/locale/pt-br';
 import { useDarkMode } from '../Global/DarkModeContext';
+import { useFontSize } from '../Global/FontSizeContext';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
 moment.locale('pt-br');
 
@@ -33,6 +23,7 @@ const Home = ({ navigation }: any) => {
   const [lastAccess, setLastAccess] = useState<string | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('Bem-vindo de volta!');
   const [activeTab, setActiveTab] = useState<'acessos' | 'filmagens'>('acessos');
+  const { fontSize, setFontSize } = useFontSize();
 
   // Usando o contexto de DarkMode
   const { isDarkMode } = useDarkMode();
@@ -82,7 +73,25 @@ const Home = ({ navigation }: any) => {
 
     checkAccess();
   }, []);
-
+  useEffect(() => {
+    const saveToken = async () => {
+      if (!user) return;
+  
+      const token = await registerForPushNotificationsAsync();
+      if (!token) return;
+  
+      const { error } = await supabase
+        .from('Tb_Usuarios')
+        .update({ expo_push_token: token }) // salva o token no banco
+        .eq('ID_Usuarios', user.uid);
+  
+      if (error) {
+        console.error('Erro salvando push token:', error.message);
+      }
+    };
+  
+    saveToken();
+  }, [user]);
   const handleOpenVideo = (url: string) => {
     Linking.canOpenURL(url).then(supported => {
       if (supported) {
@@ -97,25 +106,25 @@ const Home = ({ navigation }: any) => {
     <View style={[styles.itemContainer, themeStyles.itemContainer]}>
       <View style={styles.itemHeader}>
         <Ionicons name="log-in" size={20} color="#4CAF50" />
-        <Text style={[styles.itemTitle, themeStyles.text]}>
+        <Text style={[styles.itemTitle, themeStyles.text, { fontSize }]}>
           {item.Nome_usuario || 'Usuário não identificado'}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText]}>Entrada:</Text>
-        <Text style={[styles.itemValue, themeStyles.text]}>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]} >Entrada:</Text>
+        <Text style={[styles.itemValue, themeStyles.text , { fontSize }]}>
           {moment(item.entrada).format('DD/MM/YYYY HH:mm')}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText]}>Saída:</Text>
-        <Text style={[styles.itemValue, themeStyles.text]}>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText , { fontSize }]}>Saída:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
           {item.saida ? moment(item.saida).format('DD/MM/YYYY HH:mm') : 'Em andamento'}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText]}>Dispositivo:</Text>
-        <Text style={[styles.itemValue, themeStyles.text]} numberOfLines={1}>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText , { fontSize }]}>Dispositivo:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]} numberOfLines={1}>
           {item.Dispositivo_id || 'Não informado'}
         </Text>
       </View>
@@ -129,29 +138,29 @@ const Home = ({ navigation }: any) => {
     >
       <View style={styles.itemHeader}>
         <Ionicons name="videocam" size={20} color="#2196F3" />
-        <Text style={[styles.itemTitle, themeStyles.text]}>
+        <Text style={[styles.itemTitle, themeStyles.text , { fontSize }]}>
           {item.evento || 'Filmagem sem título'}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText]}>Data:</Text>
-        <Text style={[styles.itemValue, themeStyles.text]}>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText , { fontSize }]}>Data:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
           {moment(item.data).format('DD/MM/YYYY')}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText]}>Horário:</Text>
-        <Text style={[styles.itemValue, themeStyles.text]}>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Horário:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
           {item.hora_inicio} - {item.hora_fim}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText]}>Duração:</Text>
-        <Text style={[styles.itemValue, themeStyles.text]}>{item.duracao}</Text>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Duração:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>{item.duracao}</Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText]}>Tamanho:</Text>
-        <Text style={[styles.itemValue, themeStyles.text]}>{item.tamanho_arquivo_mb} MB</Text>
+      <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Tamanho:</Text>
+      <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>{item.tamanho_arquivo_mb} MB</Text>
       </View>
     </TouchableOpacity>
   );
@@ -160,7 +169,7 @@ const Home = ({ navigation }: any) => {
     return (
       <SafeAreaView style={[styles.container, themeStyles.container]}>
         <ActivityIndicator size="large" color="#0D293E" />
-        <Text style={[styles.loadingText, themeStyles.text]}>Carregando dados...</Text>
+        <Text style={[styles.loadingText, themeStyles.text , { fontSize }]}>Carregando dados...</Text>
       </SafeAreaView>
     );
   }
@@ -170,7 +179,7 @@ const Home = ({ navigation }: any) => {
       <SafeAreaView style={[styles.container, themeStyles.container]}>
         <View style={styles.errorContainer}>
           <Ionicons name="warning" size={40} color="#ff6659" />
-          <Text style={[styles.errorText, themeStyles.errorText]}>
+          <Text style={[styles.errorText, themeStyles.errorText , { fontSize }]}>
             {errorMsg || dadosError}
           </Text>
           <TouchableOpacity
@@ -209,10 +218,10 @@ const Home = ({ navigation }: any) => {
               style={styles.profileImage}
             />
             <View style={styles.userInfo}>
-              <Text style={[styles.userName, themeStyles.text]} numberOfLines={1}>
+              <Text style={[styles.userName, themeStyles.text , { fontSize }]} numberOfLines={1}>
                 {userData?.Nome || user?.displayName || 'Usuário'}
               </Text>
-              <Text style={[styles.userEmail, themeStyles.secondaryText]} numberOfLines={1}>
+              <Text style={[styles.userEmail, themeStyles.secondaryText, { fontSize }]} numberOfLines={1}>
                 {user?.email || 'email@exemplo.com'}
               </Text>
             </View>
@@ -221,10 +230,10 @@ const Home = ({ navigation }: any) => {
 
         <View style={styles.content}>
           <View style={[styles.card, themeStyles.card]}>
-            <Text style={[styles.welcomeTitle, themeStyles.text]}>
+            <Text style={[styles.welcomeTitle, themeStyles.text , { fontSize }]}>
               {welcomeMessage}
             </Text>
-            <Text style={[styles.welcomeText, themeStyles.secondaryText]}>
+            <Text style={[styles.welcomeText, themeStyles.secondaryText , { fontSize }]}>
               {lastAccess
                 ? `Último acesso: ${lastAccess}`
                 : 'Estamos felizes em te ver por aqui!'}
@@ -243,7 +252,7 @@ const Home = ({ navigation }: any) => {
               <Text style={[
                 styles.tabButtonText,
                 activeTab === 'acessos' && styles.activeTabButtonText,
-                themeStyles.tabButtonText
+                themeStyles.tabButtonText , { fontSize }
               ]}>
                 Histórico de Acessos
               </Text>
@@ -259,7 +268,7 @@ const Home = ({ navigation }: any) => {
               <Text style={[
                 styles.tabButtonText,
                 activeTab === 'filmagens' && styles.activeTabButtonText,
-                themeStyles.tabButtonText
+                themeStyles.tabButtonText , { fontSize }
               ]}>
                 Histórico de Filmagens
               </Text>
@@ -273,7 +282,7 @@ const Home = ({ navigation }: any) => {
               keyExtractor={(item) => item.UID}
               scrollEnabled={false}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, themeStyles.secondaryText]}>
+                <Text style={[styles.emptyText, themeStyles.secondaryText , { fontSize }]}>
                   Nenhum acesso registrado
                 </Text>
               }
@@ -286,7 +295,7 @@ const Home = ({ navigation }: any) => {
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, themeStyles.secondaryText]}>
+                <Text style={[styles.emptyText, themeStyles.secondaryText , { fontSize }]}>
                   Nenhuma filmagem registrada
                 </Text>
               }
@@ -313,12 +322,12 @@ const Home = ({ navigation }: any) => {
             />
 
             {/* Título do Modal */}
-            <Text style={[styles.modalTitle, themeStyles.text]}>
+            <Text style={[styles.modalTitle, themeStyles.text , { fontSize }]}>
               Bem-vindo ao nosso app!
             </Text>
 
             {/* Mensagem do Modal */}
-            <Text style={[styles.modalText, themeStyles.secondaryText]}>
+            <Text style={[styles.modalText, themeStyles.secondaryText , { fontSize }]}>
               Se lembre de cadastrar o cartao ou a tag para registrar os acessos e filmagens.
             </Text>
 
@@ -538,6 +547,9 @@ const styles = StyleSheet.create({
 
 // Temas
 const lightStyles = StyleSheet.create({
+  activeTabButton: {
+    backgroundColor: '#0D293E',
+  },
   container: {
     backgroundColor: '#f8f9fa',
   },
@@ -569,6 +581,10 @@ const lightStyles = StyleSheet.create({
 });
 
 const darkStyles = StyleSheet.create({
+  activeTabButton: {
+    backgroundColor: '#0D293E',
+  },
+  
   container: {
     backgroundColor: '#121212',
   },

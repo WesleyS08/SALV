@@ -1,171 +1,379 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Image } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { useUserData } from '../contexts/useUserData';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../Global/DarkModeContext';
-import { Linking } from 'react-native';
+import YoutubePlayer from 'react-native-youtube-iframe';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
+const { width } = Dimensions.get('window');
 
-const AoVivo = () => {
+const AoVivo = ({ navigation }) => {
     const { isDarkMode } = useDarkMode();
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
-  
     const { user } = useAuth();
-    const { userData } = useUserData(user);
-    const handlePress = () => {
-        Linking.openURL('https://9961-2804-14c-1c2-8e38-d16e-ce3-da16-9ffa.ngrok-free.app ');
-      };
-  
+    const { userData, isLiveActive, ngrokLink } = useUserData(user);
     
+    const playerRef = useRef<any>(null);
+    const [playerError, setPlayerError] = useState(false);
+    const [playerReady, setPlayerReady] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    // Configura a orientação da tela
+    useEffect(() => {
+        ScreenOrientation.unlockAsync();
+        
+        return () => {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+        };
+    }, []);
+
+    const handlePlayerError = (error: string) => {
+        console.error('Erro no player:', error);
+        setPlayerError(true);
+    };
+
+    const handlePlayerReady = () => {
+        setPlayerReady(true);
+        setPlayerError(false);
+    };
+
+    const handleRetry = () => {
+        if (playerRef.current) {
+            playerRef.current.seekTo(0);
+        }
+        setPlayerError(false);
+    };
+
+    const toggleFullscreen = () => {
+        setIsFullscreen(!isFullscreen);
+        if (!isFullscreen) {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        } else {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+        }
+    };
+
+    const handlePress = () => {
+        const url = ngrokLink || `https://www.youtube.com/watch?v=wACTDUyZEws`;
+        Linking.openURL(url).catch(err => console.error('Erro ao abrir link:', err));
+    };
+
     return (
-        <View style={[styles.container, themeStyles.container]}>
-            <View style={styles.header}>
-                <View style={styles.profileContainer}>
-                    <Image
-                        source={
-                            userData?.photoURL
-                            ? { uri: userData.photoURL }
-                            : require('../../assets/img/user.png')
-                        }
-                        style={styles.profileImage}
-                    />
-                    <View style={styles.userInfo}>
-                        <Text style={[styles.userName, themeStyles.text]} numberOfLines={1}>
-                            {userData?.Nome || user?.displayName || 'Usuário'}
-                        </Text>
-                        <Text style={[styles.userEmail, themeStyles.secondaryText]} numberOfLines={1}>
-                            {user?.email || 'email@exemplo.com'}
-                        </Text>
+        <ScrollView 
+            style={[styles.container, themeStyles.container]}
+            contentContainerStyle={styles.scrollContainer}
+        >
+            {/* Header com gradiente */}
+            <LinearGradient
+                colors={isDarkMode ? ['#0D293E', '#121212'] : ['#0D293E', '#f8f9fa']}
+                style={styles.headerGradient}
+            >
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color="#FFF" />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.profileContainer}>
+                        <Image
+                            source={
+                                userData?.photoURL
+                                    ? { uri: userData.photoURL }
+                                    : require('../../assets/img/user.png')
+                            }
+                            style={styles.profileImage}
+                        />
+                        <View style={styles.userInfo}>
+                            <Text style={styles.userName} numberOfLines={1}>
+                                {userData?.Nome || user?.displayName || 'Usuário'}
+                            </Text>
+                            <Text style={styles.userEmail} numberOfLines={1}>
+                                {user?.email || 'email@exemplo.com'}
+                            </Text>
+                        </View>
                     </View>
                 </View>
+            </LinearGradient>
+
+            {/* Área principal de conteúdo */}
+            <View style={styles.content}>
+                <Text style={[styles.title, themeStyles.text]}>TRANSMISSÃO AO VIVO</Text>
+                
+                {isLiveActive ? (
+                    !playerError ? (
+                        <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
+                            <YoutubePlayer
+                                ref={playerRef}
+                                height={isFullscreen ? width : 220}
+                                play={true}
+                                videoId="wACTDUyZEws"
+                                webViewStyle={styles.videoPlayer}
+                                onError={handlePlayerError}
+                                onReady={handlePlayerReady}
+                            />
+                            <TouchableOpacity 
+                                style={styles.fullscreenButton}
+                                onPress={toggleFullscreen}
+                            >
+                                <Ionicons 
+                                    name={isFullscreen ? "contract" : "expand"} 
+                                    size={24} 
+                                    color="#FFF" 
+                                />
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View style={[styles.placeholder, themeStyles.placeholder]}>
+                            <Ionicons name="alert-circle" size={60} color="#FF6B6B" />
+                            <Text style={[styles.placeholderText, themeStyles.text]}>
+                                Erro ao carregar a transmissão
+                            </Text>
+                            <TouchableOpacity 
+                                style={styles.retryButton}
+                                onPress={handleRetry}
+                            >
+                                <Text style={styles.retryButtonText}>Tentar novamente</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )
+                ) : (
+                    <View style={[styles.placeholder, themeStyles.placeholder]}>
+                        <Ionicons name="videocam-off" size={60} color="#888" />
+                        <Text style={[styles.placeholderText, themeStyles.text]}>
+                            Nenhuma transmissão no momento
+                        </Text>
+                    </View>
+                )}
+
+                {/* Informações da transmissão */}
+                <View style={[styles.infoCard, themeStyles.infoCard]}>
+                    <View style={styles.infoRow}>
+                        <Ionicons name="time" size={20} color="#4CAF50" />
+                        <Text style={[styles.infoLabel, themeStyles.secondaryText]}>Status:</Text>
+                        <Text style={[styles.infoValue, themeStyles.text]}>
+                            {isLiveActive ? "Ao vivo agora" : "Offline"}
+                        </Text>
+                    </View>
+                    
+                    <View style={styles.infoRow}>
+                        <Ionicons name="calendar" size={20} color="#2196F3" />
+                        <Text style={[styles.infoLabel, themeStyles.secondaryText]}>Última transmissão:</Text>
+                        <Text style={[styles.infoValue, themeStyles.text]}>Hoje, 15:30</Text>
+                    </View>
+                    
+                    <View style={styles.infoRow}>
+                        <Ionicons name="people" size={20} color="#FF9800" />
+                        <Text style={[styles.infoLabel, themeStyles.secondaryText]}>Visualizações:</Text>
+                        <Text style={[styles.infoValue, themeStyles.text]}>1,245</Text>
+                    </View>
+                </View>
+
+                {/* Ações */}
+                <View style={styles.actionsContainer}>
+                    <TouchableOpacity 
+                        style={[styles.actionButton, styles.primaryButton]}
+                        onPress={handlePress}
+                    >
+                        <Ionicons name="play" size={20} color="#FFF" />
+                        <Text style={styles.actionButtonText}>Assistir</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                        style={[styles.actionButton, styles.secondaryButton]}
+                        onPress={() => {}}
+                    >
+                        <Ionicons name="notifications" size={20} color="#0D293E" />
+                        <Text style={[styles.actionButtonText, {color: '#0D293E'}]}>Notificar-me</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Descrição */}
+                <View style={[styles.descriptionCard, themeStyles.card]}>
+                    <Text style={[styles.descriptionTitle, themeStyles.text]}>Sobre a transmissão</Text>
+                    <Text style={[styles.descriptionText, themeStyles.secondaryText]}>
+                        Acompanhe nossa transmissão ao vivo com os melhores conteúdos. 
+                        Quando estivermos no ar, você será notificado automaticamente.
+                    </Text>
+                </View>
             </View>
-            
-            <Text style={[styles.text2, themeStyles.text]}>Ao Vivo</Text>
-            
-            <View style={[styles.base, themeStyles.base]}>
-                <View style={[styles.img, themeStyles.img]}>
-                    <Image
-                        source={require('../images/videocam_off_24dp_E3E3E3.png')}
-                        style={{ width: 54, height: 54, top: 140, left: 210 }}
-                    />
-                    <Text style={[styles.text, themeStyles.text]}>Sem movimento em seu ambiente.</Text>
-                </View>      
-            </View>
-            
-            <Text style={[styles.text1, themeStyles.text]}>
-                Quando houver algum movimento, você será notificado e poderá visualizar o movimento.
-            </Text>
-            <Text style={[styles.link3, themeStyles.link3]}>
-                Para assistir à transmissão ao vivo, você precisa acessar o link e confirmar:
-{' '}
-                <Text style={styles.link} onPress={(handlePress)}>
-                    clique aqui
-                </Text>
-                </Text>
-    
-        </View>
+        </ScrollView>
     );
 };
 
 const styles = StyleSheet.create({
-    link3: {
-        fontSize: 16,
-        color: '#000',
-        fontWeight: 'bold',
-        marginTop: 60,
-        textAlign: 'center',
-        width: '80%',
-        alignSelf: 'center',
-    },
-    link: {
-        color: 'blue',
-        fontWeight: 'bold',
-        textDecorationLine: 'underline'
-      },
     container: {
         flex: 1,
-        padding: 20,
-        backgroundColor: '#f0f0f0',
+    },
+    scrollContainer: {
+        paddingBottom: 40,
+    },
+    headerGradient: {
+        paddingTop: 50,
+        paddingBottom: 20,
+        paddingHorizontal: 20,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
     },
     header: {
-        width: '100%',
-        marginBottom: 30,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    backButton: {
+        marginRight: 15,
     },
     profileContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        width: '100%',
+        flex: 1,
     },
     profileImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
         marginRight: 15,
         borderWidth: 2,
-        borderColor: '#0D293E',
+        borderColor: '#FFF',
     },
     userInfo: {
         flex: 1,
     },
     userName: {
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: '600',
-        marginBottom: 4,
+        marginBottom: 2,
+        color: '#FFF',
     },
     userEmail: {
         fontSize: 14,
         opacity: 0.8,
+        color: '#FFF',
     },
-    secondaryText: {
-        color: '#bdc3c7',
+    content: {
+        padding: 20,
     },
-    base: {
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginVertical: 20,
+        letterSpacing: 1,
+    },
+    videoContainer: {
         width: '100%',
+        borderRadius: 12,
+        overflow: 'hidden',
+        marginBottom: 20,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+    },
+    fullscreenVideo: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 100,
+    },
+    videoPlayer: {
+        borderRadius: 12,
+    },
+    fullscreenButton: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: 8,
+        borderRadius: 20,
+    },
+    placeholder: {
+        width: '100%',
+        height: 220,
+        justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 50,
-        height: 378,
-        borderRadius: 14,
-        backgroundColor: "#D9D9D9",
-        shadowColor: "#000",       // Cor da sombra
-        shadowOffset: {
-            width: 0,            // Deslocamento horizontal
-            height: 2,           // Deslocamento vertical
-        },
-        shadowOpacity: 0.25,      // Opacidade (0 a 1)
-        shadowRadius: 3.84,       // Raio do borrão
-        // Sombra para Android
-        elevation: 5,            // Nível de elevação (Android)
+        borderRadius: 12,
+        marginBottom: 20,
     },
-    img: {
-        width: '95%',
-        height: 369,
-        marginTop: 4,
-        borderRadius: 8,
-        backgroundColor: "#201F21",
-    },
-    text2: {
+    placeholderText: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#000',
-        textAlign: 'center',
+        marginTop: 15,
+    },
+    retryButton: {
         marginTop: 20,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        backgroundColor: '#0D293E',
+        borderRadius: 25,
     },
-    text: {
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontWeight: 'bold',
+    },
+    infoCard: {
+        borderRadius: 12,
+        padding: 20,
+        marginBottom: 20,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    infoLabel: {
+        fontSize: 14,
+        marginLeft: 10,
+        marginRight: 5,
+        width: 120,
+    },
+    infoValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        flex: 1,
+    },
+    actionsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 25,
+        width: '48%',
+    },
+    primaryButton: {
+        backgroundColor: '#0D293E',
+    },
+    secondaryButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: '#0D293E',
+    },
+    actionButtonText: {
+        marginLeft: 8,
+        fontWeight: '600',
+        color: '#FFF',
+    },
+    descriptionCard: {
+        borderRadius: 12,
+        padding: 20,
+    },
+    descriptionTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#fff',
-        marginTop: 250,
-        textAlign: 'center',
+        marginBottom: 10,
     },
-    text1: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#000',
-        marginTop: 30,
-        textAlign: 'center',
-        width: '80%',
-        alignSelf: 'center',
+    descriptionText: {
+        fontSize: 14,
+        lineHeight: 22,
     },
 });
 
@@ -173,42 +381,53 @@ const darkStyles = StyleSheet.create({
     container: {
         backgroundColor: '#121212',
     },
-    base: {
-        backgroundColor: '#1e1e1e',
-    },
-    img: {
-        backgroundColor: '#2d2d2d',
-    },
     text: {
-        color: '#ffffff',
+        color: '#FFF',
     },
     secondaryText: {
         color: '#bdc3c7',
     },
-    link3:{
-        color: '#ffffff',
-    }
+    placeholder: {
+        backgroundColor: '#1E1E1E',
+    },
+    infoCard: {
+        backgroundColor: '#1E1E1E',
+    },
+    card: {
+        backgroundColor: '#1E1E1E',
+        shadowColor: '#000',
+    },
 });
 
 const lightStyles = StyleSheet.create({
     container: {
-        backgroundColor: '#f8f9fa',
-    },
-    base: {
-        backgroundColor: '#ffffff',
-    },
-    img: {
-        backgroundColor: '#f0f0f0',
+        backgroundColor: '#F8F9FA',
     },
     text: {
-        color: '#2c3e50',
+        color: '#2C3E50',
     },
     secondaryText: {
-        color: '#7f8c8d',
-    }, 
-    link3:{
-        color: '#2c3e50',
-    }
+        color: '#7F8C8D',
+    },
+    placeholder: {
+        backgroundColor: '#F0F0F0',
+    },
+    infoCard: {
+        backgroundColor: '#FFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    card: {
+        backgroundColor: '#FFF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
 });
 
 export default AoVivo;
