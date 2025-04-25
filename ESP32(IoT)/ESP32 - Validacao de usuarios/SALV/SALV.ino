@@ -11,53 +11,40 @@
 #include <time.h>
 #include "esp_sleep.h"
 
-// Sensor de movimento
 #define PIR_PIN 4
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 MFRC522DriverPinSimple ss_pin(5);
 MFRC522DriverSPI driver{ ss_pin };
 MFRC522 mfrc522{ driver };
-bool cartaoLido = false;
-unsigned long tempoAlertar = 0;
 
-const char* API_Cartao = "https://wesleyewr.pythonanywhere.com/verificar-cartao";           // Endpoint para cartão
-const char* API_bancodedados = "https://wesleyewr.pythonanywhere.com/teste-supabase";       // Endpoint para banco de dados
-const char* Api_registraEntrada = "https://wesleyewr.pythonanywhere.com/registro-entrada";  // Endpoint para entrada
-const char* Api_registraSaida = "https://wesleyewr.pythonanywhere.com/registro-acesso";     // Endpoint para saída
+// Variáveis globais
+bool cartaoLido = false, alertaEnviado = false, acessoLiberado = false;
+bool contagemSeguranca = false, emCooldown = false, movimentoDetectado = false;
+unsigned long tempoAlertar = 0, ultimaLeitura = 0, tempoAcessoLiberado = 0;
+unsigned long inicioContagem = 0, tempoCooldown = 0, tempoDetectado = 0;
+unsigned long ultimaAtualizacaoCooldown = 0, tempoUltimoRelatorio = 0;
+String horaInicio = "", horaFim = "";
 
-// Configurações de Wi-Fi
-const char* ssid = "LIVE TIM_0C19_2G";
-const char* password = "2f5r2pmppenr7u46";
-
-// Configurações do MQTT
-const char* mqtt_server = "4a365b5daed84608a452dee1000cb7e5.s1.eu.hivemq.cloud";
+// APIs e configurações de rede
+const char* API_Cartao = "https://[REDACTED]/verificar-cartao";
+const char* Api_registraEntrada = "https://[REDACTED]/registro-entrada";
+const char* Api_registraSaida = "https://[REDACTED]/registro-acesso";
+const char* ssid = "[REDACTED_SSID]";
+const char* password = "[REDACTED_PASSWORD]";
+const char* mqtt_server = "[REDACTED_MQTT_SERVER]";
 const int mqtt_port = 8883;
-const char* mqtt_user = "Esp32";
-const char* mqtt_password = "Kwg9TNUpr6WeZ1KD";
-
-// Configurações Wake-on-LAN
-const char* pc_mac_str = "00:E0:4F:1C:29:7D";
+const char* mqtt_user = "[REDACTED_MQTT_USER]";
+const char* mqtt_password = "[REDACTED_MQTT_PASS]";
+const char* pc_mac_str = "[REDACTED_MAC]";
 uint8_t mac_address[6];
 const int wol_port = 9;
 
-bool alertaEnviado = false;
-bool acessoLiberado = false;
-unsigned long tempoAcessoLiberado = 0;
-
-// NTPClient
-WiFiUDP ntpUDP;
+// Objetos de rede
+WiFiUDP ntpUDP, udp;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -10800, 3600);
-
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
-WiFiUDP udp;
 
-// Variáveis de controle de movimento
-bool movimentoDetectado = false;
-unsigned long tempoDetectado = 0;
-String horaInicio = "";
-String horaFim = "";
-unsigned long tempoUltimoRelatorio = 0;
 
 // Função para obter data/hora completa no formato "YYYY-MM-DD HH:MM:SS"
 String getFormattedDateTime() {
@@ -89,8 +76,6 @@ void setup_wifi() {
       case 1: lcd.print(".  "); break;
       case 2: lcd.print(".. "); break;
       case 3: lcd.print("..."); break;
-      case 4: lcd.print("...."); break;
-      case 5: lcd.print("....."); break;
     }
     tentativas++;
     if (tentativas > 10) {
@@ -118,22 +103,44 @@ void reconnect() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Conectando MQTT");
+
     if (client.connect("ESP32Client", mqtt_user, mqtt_password)) {
       Serial.println("Conectado!");
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("MQTT Conectado!");
-      client.publish("status/connected", "ESP32 Conectado!");
-      delay(1000);
+
+      // Subscreva a todos os tópicos relevantes
       client.subscribe("comando/wol");
+      client.subscribe("status/#");  // Monitora todos os subtópicos de status
+
+      // Publica mensagem de conexão
+      client.publish("status/connection", "ESP32 reconectado");
+      delay(1000);
     } else {
       Serial.print("Falha, rc=");
-      Serial.print(client.state());
-      Serial.println(" Tentando em 5s...");
+      Serial.println(client.state());
       lcd.setCursor(0, 1);
-      lcd.print("Falha. Retry...");
+      lcd.print("Falha: " + String(client.state()));
       delay(5000);
     }
+  }
+}
+
+// Função auxiliar para traduzir códigos de erro MQTT
+String obterMensagemEstadoMQTT(int estado) {
+  switch (estado) {
+    case -4: return "Tempo esgotado";
+    case -3: return "Conexão perdida";
+    case -2: return "Falha na conexão";
+    case -1: return "Desconectado";
+    case 0: return "Conectado";
+    case 1: return "Protocolo inválido";
+    case 2: return "ID cliente inválido";
+    case 3: return "Servidor indisponível";
+    case 4: return "Credenciais inválidas";
+    case 5: return "Não autorizado";
+    default: return "Erro desconhecido";
   }
 }
 
@@ -154,23 +161,32 @@ void sendWOL() {
 }
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Mensagem [");
+  // Converte payload para string
+  char message[length + 1];
+  memcpy(message, payload, length);
+  message[length] = '\0';
+
+  Serial.print("Mensagem recebida [");
   Serial.print(topic);
   Serial.print("]: ");
-  String message;
-  for (int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
   Serial.println(message);
+
+  // Exibe no LCD
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("MQTT Msg:");
+  lcd.print("MQTT: " + String(topic).substring(0, 10));
   lcd.setCursor(0, 1);
-  lcd.print(message);
-  delay(2000);
-  if (message == "ligarPC") {
-    sendWOL();
+  lcd.print(String(message).substring(0, 16));
+
+  // Processa comandos
+  if (String(topic) == "comando/wol") {
+    if (String(message) == "ligarPC") {
+      sendWOL();
+    }
   }
+
+  // Adicione outros tópicos conforme necessário
+  delay(1000);  // Tempo para ler a mensagem no LCD
 }
 
 void setup() {
@@ -184,6 +200,8 @@ void setup() {
   espClient.setInsecure();
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(mqttCallback);
+  client.setSocketTimeout(30); 
+  client.setKeepAlive(60);
   pinMode(PIR_PIN, INPUT);
   if (!mfrc522.PCD_Init()) {
     Serial.println("Falha na inicialização do MFRC522!");
@@ -193,143 +211,135 @@ void setup() {
   Serial.println("MFRC522 inicializado!");
 }
 
-// Função para enviar mensagem para o MQTT
 void enviarMensagemMQTT(const char* topico, const char* mensagem) {
-  Serial.print("função de mensagem chamada ");
   if (!client.connected()) {
     reconnect();
   }
 
-  if (client.connected()) {
-    Serial.print("Enviando mensagem para o MQTT: ");
+  if (client.publish(topico, mensagem)) {
+    Serial.print("Mensagem enviada [");
+    Serial.print(topico);
+    Serial.print("]: ");
     Serial.println(mensagem);
-    client.publish(topico, mensagem);
   } else {
-    Serial.println("Falha na conexão MQTT. Tentando reconectar...");
+    Serial.println("Falha ao enviar mensagem MQTT");
     reconnect();
   }
 }
 
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
+  if (!client.connected()) reconnect();
   client.loop();
   timeClient.update();
+  static unsigned long lastMqttCheck = 0;
+  if (millis() - lastMqttCheck > 30000) {  // A cada 30 segundos
+    if (!client.connected()) {
+      reconnect();
+    }
+    lastMqttCheck = millis();
+  }
+  // Cooldown de 2 horas
+  if (emCooldown) {
+    unsigned long tempoRestante = 7200000 - (millis() - tempoCooldown);
+    if (tempoRestante > 0) {
+      lcd.clear();
+      lcd.print("Acesso recente!");
+      lcd.setCursor(0, 1);
+      lcd.print("Tempo restante:");
+      unsigned long segundos = tempoRestante / 1000;
+      lcd.print(String(segundos / 3600) + "h " + String((segundos % 3600) / 60) + "m " + String(segundos % 60) + "s");
+    } else emCooldown = false;
+    return;
+  }
 
-  int movimento = digitalRead(PIR_PIN);
-  Serial.print("Estado PIR: ");
-  Serial.println(movimento);
-
-  // Se movimento for detectado e não estivermos processando leitura
-  if (movimento == HIGH && !movimentoDetectado) {
+  // Detecção de movimento
+  if (digitalRead(PIR_PIN) && !movimentoDetectado) {
     movimentoDetectado = true;
-    tempoDetectado = millis();
-    horaInicio = timeClient.getFormattedTime();
-    Serial.print("Movimento! Hora: ");
-    Serial.println(horaInicio);
-    alertaEnviado = false; // Resetar o alerta quando novo movimento é detectado
-
-    bool cartaoLido = false;
-    bool cancelAlert = false; // Adicionada declaração da variável
+    bool cancelAlert = false;
     unsigned long tempoInicio = millis();
-    
+
+    // Loop de leitura do cartão (60 segundos)
     while (millis() - tempoInicio < 60000 && !cartaoLido && !cancelAlert) {
       lcd.setCursor(0, 0);
       lcd.print("leia o cartao...");
-
       lcd.setCursor(0, 1);
-      int segundosRestantes = 60 - ((millis() - tempoInicio) / 1000);
-      lcd.print("Tempo: ");
-      lcd.print(segundosRestantes);
-      lcd.print("s ");
+      lcd.print("Tempo: " + String(60 - ((millis() - tempoInicio) / 1000)) + "s");
 
       if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
-        Serial.println("Cartão detectado!");
         String uid = "";
-        for (byte i = 0; i < mfrc522.uid.size; i++) {
-          uid += String(mfrc522.uid.uidByte[i], HEX);
-        }
-        Serial.println("UID do cartão: " + uid);
+        for (byte i = 0; i < mfrc522.uid.size; i++) uid += String(mfrc522.uid.uidByte[i], HEX);
         String nome = verificaCartaoNaAPI(uid);
         if (nome != "") {
-          Serial.println("Cartão lido! Acesso liberado.");
           lcd.clear();
-          lcd.setCursor(0, 0);
           lcd.print("Bem-vindo:");
           lcd.setCursor(0, 1);
           lcd.print(nome);
-          delay(5000);
-          lcd.noBacklight();
-          lcd.noDisplay();
+          tempoCooldown = millis();
+          emCooldown = true;
           cartaoLido = true;
-          movimentoDetectado = false;
-          return; // Sai completamente da função loop()
-        } else {
-          Serial.println("Cartão inválido.");
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print("Acesso negado!");
           delay(5000);
+          return;
         }
       }
       delay(100);
     }
 
-    // Só executa este bloco se o cartão não foi lido (timeout)
+    // Acesso negado
     if (!cartaoLido && !cancelAlert) {
-      Serial.println("Acesso negado, tempo expirado!");
       lcd.clear();
-      lcd.setCursor(0, 0);
       lcd.print("Alerta:");
       lcd.setCursor(0, 1);
       lcd.print("Usuario nao auth");
+      enviarMensagemMQTT("status/alert", "acesso negado");
+      Serial.println("Debug - Publicado no tópico: alert");
+      Serial.print("Estado MQTT: ");
+      Serial.println(client.state());
 
-      // Enviar alerta MQTT apenas se não foi enviado antes
-      if (!alertaEnviado) {
-        enviarMensagemMQTT("status/alert", "acesso negado");
-        alertaEnviado = true;
-      }
-
-      // Modo alerta
+      // Loop de alerta (5 minutos)
       unsigned long tempoAlertaInicio = millis();
-      while (digitalRead(PIR_PIN) == HIGH && millis() - tempoAlertaInicio < 300000) { // 5 minutos de alerta
+      while (digitalRead(PIR_PIN) && millis() - tempoAlertaInicio < 300000) {
         if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
           String uid = "";
-          for (byte i = 0; i < mfrc522.uid.size; i++) {
-            uid += String(mfrc522.uid.uidByte[i], HEX);
-          }
+          for (byte i = 0; i < mfrc522.uid.size; i++) uid += String(mfrc522.uid.uidByte[i], HEX);
           String nome = verificaCartaoNaAPI(uid);
           if (nome != "") {
-            cancelAlert = true;
+            enviarMensagemMQTT("status/alert", "alerta cancelado, acesso liberado");
+            contagemSeguranca = true;
+            inicioContagem = millis();
+            lcd.clear();
+            lcd.print("Local Seguro!");
+            lcd.setCursor(0, 1);
+            lcd.print("Verificacao...");
+            delay(2000);
             break;
           }
         }
-        delay(1000);
+        delay(100);
       }
 
-      if (!cancelAlert) {
+      // Contagem regressiva de 10 minutos
+      if (contagemSeguranca) {
+        unsigned long tempoAtual = millis();
+        while (millis() - inicioContagem < 600000) {
+          lcd.clear();
+          lcd.print("Verificacao em:");
+          lcd.setCursor(0, 1);
+          int segundos = 600 - ((millis() - inicioContagem) / 1000);
+          lcd.print(String(segundos / 60) + "m " + String(segundos % 60) + "s");
+          delay(1000);
+        }
+        ESP.restart();
+      } else {
         lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("Sem movimento.");
-        lcd.setCursor(0, 1);
         lcd.print("Modo economia.");
-        delay(2000);
-        esp_sleep_enable_ext0_wakeup((gpio_num_t)PIR_PIN, HIGH);
         esp_deep_sleep_start();
       }
     }
   }
 
-  if (movimento == LOW && movimentoDetectado) {
-    movimentoDetectado = false;
-    horaFim = timeClient.getFormattedTime();
-    Serial.print("Movimento terminou! Hora: ");
-    Serial.println(horaFim);
-    enviarMensagemMQTT("alert", "sem ninguém na sala verifique");
-  }
-  delay(1000);
+  if (digitalRead(PIR_PIN) == LOW && movimentoDetectado) movimentoDetectado = false;
 }
+
 
 void registraAcessoNaAPI(String uid, String nome, String dispositivo_id, String entrada) {
   HTTPClient http;
@@ -424,7 +434,7 @@ void registraSaidaNaAPI(String uid, String saida) {
   if (httpResponseCode > 0) {
     String response = http.getString();
     Serial.println("Resposta da API: " + response);
-    
+
     // Verifica se a resposta contém um erro
     if (response.indexOf("\"status\":\"error\"") != -1) {
       Serial.println("Erro ao registrar saída:");
@@ -433,17 +443,17 @@ void registraSaidaNaAPI(String uid, String saida) {
       int msgEnd = response.indexOf("\"", msgStart);
       String errorMsg = response.substring(msgStart, msgEnd);
       Serial.println(errorMsg);
-      
+
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("Erro registro:");
       lcd.setCursor(0, 1);
-      lcd.print(errorMsg.substring(0, 16)); // Limita ao tamanho do LCD
+      lcd.print(errorMsg.substring(0, 16));  // Limita ao tamanho do LCD
     }
   } else {
     Serial.print("Erro na requisição: ");
     Serial.println(httpResponseCode);
-    
+
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("Erro HTTP:");
