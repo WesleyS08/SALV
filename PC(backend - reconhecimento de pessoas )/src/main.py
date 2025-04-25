@@ -20,15 +20,26 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Configura OBS
-OBS_WS_HOST = "192.168.1.6"
+OBS_WS_HOST = "192.168.0.164"
 OBS_WS_PORT = 4455
 OBS_WS_PASSWORD = os.getenv("OBS_WS_PASSWORD")
-NOME_CENA = "Detecção"
+MQTT_PASSWORD=os.getenv("MQTT_PASSWORD")
+MQTT_USERNAME=os.getenv("MQTT_USERNAME")
+MQTT_CLUSTER_URL=os.getenv("MQTT_CLUSTER_URL")
+FONTE_VIDEO = "Camera_Seguranca"  # Nome da fonte de vídeo
+NOME_CENA = "Detecção"  # Nome da cena no OBS
+
+
+IP_WEBCAM_URL = "http://192.168.0.167:8080/video"  # URL do vídeo MJPEG
+IP_WEBCAM_STATUS = "http://192.168.0.167:8080/status.json"  # URL para verificar status
+IP_WEBCAM_USER = None  # Se precisar de autenticação
+IP_WEBCAM_PASS = None  # Se precisar de autenticação
 
 # Banco de dados
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 supabase = create_client(supabase_url, supabase_key)
+
 
 # Inicializa variáveis
 obs = None
@@ -40,69 +51,236 @@ fps = 30  # Definindo a variável fps global
 yolo_model = YOLO(os.path.join(BASE_DIR, "models", "yolov8n.pt"))
 mp_face = mp.solutions.face_detection
 
+
 def is_obs_running():
     for proc in psutil.process_iter(attrs=['pid', 'name']):
         if proc.info['name'] == 'obs64.exe':
             return True
     return False
 
-def iniciar_obs():
+def testar_conexao_ip_webcam():
+    """Testa a conexão com o IP Webcam"""
     try:
-        if is_obs_running():
-            print("OBS já está em execução.")
+        auth = (IP_WEBCAM_USER, IP_WEBCAM_PASS) if IP_WEBCAM_USER else None
+        response = requests.get(IP_WEBCAM_STATUS, auth=auth, timeout=5)
+        if response.status_code == 200:
+            print("✅ Conexão com IP Webcam bem-sucedida!")
             return True
+        print(f"❌ Erro na conexão: HTTP {response.status_code}")
+    except Exception as e:
+        print(f"❌ Falha ao conectar ao IP Webcam: {str(e)}")
+    return False
 
-        obs_path = r"C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"
-        if not os.path.exists(obs_path):
-            raise FileNotFoundError(f"OBS não encontrado: {obs_path}")
+def configurar_obs_simples():
+    def verificar_conexao_obs():
+        try:
+            return obs.get_version() is not None
+        except:
+            return False
 
-        subprocess.run(["taskkill", "/f", "/im", "obs64.exe"], shell=True,
-                      stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-        time.sleep(2)
+    def testar_conexao_ip_webcam():
+        try:
+            auth = (IP_WEBCAM_USER, IP_WEBCAM_PASS) if IP_WEBCAM_USER else None
+            response = requests.get(IP_WEBCAM_URL.replace('/video', '/status.json'), 
+                                 auth=auth, timeout=5)
+            return response.status_code == 200
+        except:
+            return False
 
-        subprocess.Popen([obs_path, "--startvirtualcam", "--minimize-to-tray", "--lang", "pt-BR", "--disable-updater"])
-        print("OBS iniciado!")
-        time.sleep(10)
+    try:
+        # Verificar conexão com OBS
+        if not verificar_conexao_obs():
+            print("❌ Não foi possível conectar ao OBS")
+            return False
+
+        # Testar conexão com IP Webcam
+        if not testar_conexao_ip_webcam():
+            print("❌ Não foi possível conectar ao IP Webcam")
+            print("Verifique:")
+            print(f"- O app está rodando no celular?")
+            print(f"- O IP está correto? (Atual: {IP_WEBCAM_URL})")
+            print(f"- Celular e PC estão na mesma rede?")
+            return False
+
+        # 1. Verificar/Criar cena
+        cenas = obs.get_scene_list().scenes
+        cena_existe = any(cena["sceneName"] == NOME_CENA for cena in cenas)
+        
+        if not cena_existe:
+            obs.call("CreateScene", {"sceneName": NOME_CENA})
+            print(f"✅ Cena '{NOME_CENA}' criada")
+        else:
+            print(f"ℹ️ Cena '{NOME_CENA}' já existe")
+
+        # 2. Configuração do IP Webcam
+        config_webcam = {
+            "input": IP_WEBCAM_URL,
+            "input_format": "mjpeg",
+            "buffering_mb": 2,
+            "is_local_file": False
+        }
+
+        if IP_WEBCAM_USER and IP_WEBCAM_PASS:
+            config_webcam.update({
+                "username": IP_WEBCAM_USER,
+                "password": IP_WEBCAM_PASS
+            })
+
+        # Verificar se a fonte já existe
+        inputs = obs.get_input_list().inputs
+        fonte_existe = any(input["inputName"] == FONTE_VIDEO for input in inputs)
+
+        if fonte_existe:
+            # Se a fonte existe, atualizar configurações
+            obs.call("SetInputSettings", {
+                "inputName": FONTE_VIDEO,
+                "inputSettings": config_webcam
+            })
+            print(f"✅ Fonte '{FONTE_VIDEO}' atualizada com IP Webcam")
+        else:
+            # Criar nova fonte usando a sintaxe correta
+            try:
+                obs.call("CreateInput", {
+                    "sceneName": NOME_CENA,
+                    "inputName": FONTE_VIDEO,
+                    "inputKind": "ffmpeg_source",
+                    "inputSettings": config_webcam
+                })
+                print(f"✅ Fonte IP Webcam '{FONTE_VIDEO}' criada")
+            except Exception as e:
+                print(f"❌ Falha ao criar fonte: {str(e)}")
+                return False
+
+        # 3. Garantir que a fonte está na cena
+        items = obs.call("GetSceneItemList", {"sceneName": NOME_CENA}).scene_items
+        fonte_na_cena = any(item["sourceName"] == FONTE_VIDEO for item in items)
+
+        if not fonte_na_cena:
+            try:
+                obs.call("CreateSceneItem", {
+                    "sceneName": NOME_CENA,
+                    "sourceName": FONTE_VIDEO,
+                    "sceneItemEnabled": True
+                })
+                print(f"✅ Fonte '{FONTE_VIDEO}' adicionada à cena '{NOME_CENA}'")
+            except Exception as e:
+                print(f"⚠️ Erro ao adicionar fonte à cena: {str(e)}")
+                return False
+
+        # 4. Configurar a cena como ativa
+        try:
+            obs.call("SetCurrentProgramScene", {"sceneName": NOME_CENA})
+            print(f"✅ Cena '{NOME_CENA}' definida como ativa")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️ Erro ao definir cena ativa: {str(e)}")
+            return False
+
+    except Exception as e:
+        print(f"❌ Erro crítico: {str(e)}")
+        return False
+    
+def debug_obs_config():
+    print("\n🔍 Configuração atual do OBS:")
+    try:
+        # Lista cenas
+        scenes = obs.get_scene_list().scenes
+        print(f"Cenas disponíveis: {[s['sceneName'] for s in scenes]}")
+        
+        # Lista fontes na cena
+        if NOME_CENA in [s['sceneName'] for s in scenes]:
+            items = obs.get_scene_item_list(NOME_CENA).scene_items
+            print(f"Fontes em '{NOME_CENA}': {[i['sourceName'] for i in items]}")
+        
+        # Lista dispositivos de entrada
+        inputs = obs.get_input_list().inputs
+        print(f"Dispositivos de entrada: {[i['inputName'] for i in inputs]}")
+        
+    except Exception as e:
+        print(f"Erro no debug: {e}")
+
+def iniciar_transmissao_simples():
+    global transmite
+    try:
+        # 1. Configura OBS automaticamente
+        if not configurar_obs_simples():
+            return False
+
+        # 2. Inicia a transmissão
+        obs.start_stream()
+        transmite = True
+        print("🔴 **TRANSMISSÃO INICIADA!**")
+        atualizar_ao_vivo_no_db(True)  # Atualiza status no banco de dados
         return True
 
     except Exception as e:
+        print(f"❌ Falha ao iniciar transmissão: {e}")
+        return False
+
+def iniciar_obs():
+    try:
+        if is_obs_running():
+            return True
+            
+        obs_path = r"C:\Program Files\obs-studio\bin\64bit\obs64.exe"
+        subprocess.Popen([obs_path], cwd=os.path.dirname(obs_path))
+        time.sleep(10)  # Tempo maior para inicialização
+        return True
+        
+    except Exception as e:
         print(f"Erro ao iniciar OBS: {e}")
-        time.sleep(5)
         return False
 
 def conectar_obs():
     global obs
     try:
-        obs = ReqClient(host=OBS_WS_HOST, port=OBS_WS_PORT, password=OBS_WS_PASSWORD)
-        print("Conectado ao OBS via WebSocket!")
+        obs = ReqClient(host=OBS_WS_HOST, port=OBS_WS_PORT, password=OBS_WS_PASSWORD, timeout=5)
+        print("✅ Conectado ao OBS via WebSocket")
         return True
     except Exception as e:
-        print(f"Erro ao conectar OBS: {e}")
+        print(f"❌ Falha na conexão OBS: {e}")
         return False
 
 def iniciar_transmissao():
     global transmite
-    try:
-        status = obs.get_stream_status()
-        if not status.output_active:
-            cenas = obs.get_scene_list().scenes
-            nomes_cenas = [scene['sceneName'] for scene in cenas]
+    max_tentativas = 3
+    tentativa = 0
+    
+    while tentativa < max_tentativas:
+        try:
+            if obs is None:
+                print("OBS não está conectado! Tentando reconectar...")
+                if not conectar_obs():
+                    time.sleep(2)
+                    tentativa += 1
+                    continue
 
-            if NOME_CENA in nomes_cenas:
-                obs.set_current_program_scene(NOME_CENA)
-                print(f"Mudando para cena: {NOME_CENA}")
+            status = obs.get_stream_status()
+            if not status.output_active:
+                cenas = obs.get_scene_list().scenes
+                nomes_cenas = [scene['sceneName'] for scene in cenas]
+
+                if NOME_CENA in nomes_cenas:
+                    obs.set_current_program_scene(NOME_CENA)
+                    print(f"Mudando para cena: {NOME_CENA}")
+
+                obs.start_stream()
+                transmite = True
+                print("🎥 Transmissão iniciada automaticamente!")
+                atualizar_ao_vivo_no_db(True)
+                return True
             else:
-                print(f"Atenção: Cena '{NOME_CENA}' não encontrada! Mantendo cena atual.")
+                print("OBS já está transmitindo!")
+                return True
 
-            obs.start_stream()
-            transmite = True
-            atualizar_ao_vivo_no_db(True)  
-            print("🎥 Iniciando transmissão para a live 'segurança 24 horas' no YouTube!")
-        else:
-            print("OBS já está transmitindo!")
-
-    except Exception as e:
-        print(f"Erro ao iniciar transmissão: {e}")
+        except Exception as e:
+            print(f"Erro ao iniciar transmissão (tentativa {tentativa + 1}/{max_tentativas}): {e}")
+            time.sleep(2)
+            tentativa += 1
+    
+    print("Falha ao iniciar transmissão após várias tentativas")
+    return False
 
 def parar_transmissao():
     global transmite
@@ -115,29 +293,26 @@ def parar_transmissao():
     except Exception as e:
         print(f"Erro ao parar transmissão: {e}")
 
-def pausar_transmissao():
-    global transmite
-    if transmite:
-        parar_transmissao() 
-        print("Transmissão pausada devido à parada do modelo.")
-    else:
-        print("A transmissão já está pausada.")
-
-def retomar_transmissao():
-    global transmite
-    if not transmite:
-        iniciar_transmissao()  
-        print("Retomando transmissão após reinício do modelo.")
-    else:
-        print("A transmissão já está em andamento.")
+def verificar_transmissao_periodicamente():
+    while True:
+        if transmite:
+            try:
+                status = obs.get_stream_status()
+                if not status.output_active:
+                    print("Transmissão caiu! Tentando reiniciar...")
+                    iniciar_transmissao()
+            except Exception as e:
+                print(f"Erro ao verificar status da transmissão: {e}")
+        
+        time.sleep(60)  # Verifica a cada minuto
 
 def atualizar_ao_vivo_no_db(status: bool):
     try:
-        res = supabase.table('ngrok_links').update({"AoVivo": True}).eq("id", 1).execute()
+        res = supabase.table('ngrok_links').update({"AoVivo": status}).eq("id", 1).execute()
         print(f"Banco de dados atualizado com status AoVivo: {status}")
     except Exception as e:
         print(f"Erro ao atualizar banco de dados: {e}")
-
+        
 def verificar_video_valido(caminho_video):
     try:
         cap = cv2.VideoCapture(caminho_video)
@@ -264,12 +439,19 @@ def salvar_informacoes_filmagem(inicio, fim, duracao, url_video, caminho_video_l
 def processar_deteccoes():
     global grava
 
-    cap = cv2.VideoCapture(0)
+
+    # Configuração especial para captura do IP Webcam
+    cap = cv2.VideoCapture(IP_WEBCAM_URL)
+    if IP_WEBCAM_USER and IP_WEBCAM_PASS:
+        cap.set(cv2.CAP_PROP_USERNAME, IP_WEBCAM_USER)
+        cap.set(cv2.CAP_PROP_PASSWORD, IP_WEBCAM_PASS)
+    
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduzir buffer para menor latência
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     if not cap.isOpened():
-        print("Erro: Câmera não disponível!")
+        print("❌ Erro: Não foi possível conectar ao IP Webcam!")
         return
 
     print("Iniciando gravação...")
@@ -388,52 +570,61 @@ def processar_deteccoes():
         retomar_transmissao()  # Retoma a transmissão quando o modelo voltar
 
 def on_mqtt_message(client, userdata, msg):
-    global grava
+    global grava, transmite
 
     mensagem = msg.payload.decode().lower()
     print(f"MQTT: {mensagem}")
 
     if "acesso negado" in mensagem and not grava:
-        grava = True
-        threading.Thread(target=processar_deteccoes, daemon=True).start()
-        threading.Timer(3, iniciar_transmissao).start()
+        # 1. Configura OBS
+        if configurar_obs_simples():
+            grava = True
+            # 2. Inicia gravação e transmissão
+            threading.Thread(target=processar_deteccoes, daemon=True).start()
+            threading.Timer(3, iniciar_transmissao_simples).start()
+
     elif "alerta cancelado, acesso liberado" in mensagem and grava:
         grava = False
         parar_transmissao()
 
 def main():
-    iniciar_obs()
-
-    for _ in range(10):
-        if conectar_obs():
-            break
-        print("Tentando conectar novamente...")
-        time.sleep(2)
-    else:
-        print("Não foi possível conectar ao OBS!")
+    # 1. Inicia OBS
+    if not iniciar_obs():
+        print("❌ OBS não iniciou!")
         return
 
-    client = mqtt.Client()
-    client.username_pw_set(os.getenv("MQTT_USERNAME"), os.getenv("MQTT_PASSWORD"))
+    # 2. Conecta ao OBS WebSocket (deixa pronto)
+    if not conectar_obs():
+        print("❌ Falha na conexão OBS!")
+        return
+
+    # 3. Debug (opcional): Verifica configurações do OBS
+    debug_obs_config()
+
+    # 4. Thread para monitorar a transmissão (se cair, reinicia)
+    threading.Thread(target=verificar_transmissao_periodicamente, daemon=True).start()
+
+    # 5. Configuração do MQTT (aguarda mensagem para iniciar)
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     client.tls_set()
     client.on_message = on_mqtt_message
 
     try:
-        client.connect(os.getenv("MQTT_CLUSTER_URL"), 8883)
+        client.connect(MQTT_CLUSTER_URL, 8883)
         client.subscribe("alert")
-        print("Conectado ao MQTT. Aguardando mensagens...")
+        print("🔌 Conectado ao MQTT. Aguardando mensagens para iniciar transmissão...")
         client.loop_forever()
-    except KeyboardInterrupt:
-        print("\nEncerrando...")
+
+    except Exception as e:
+        print(f"❌ Erro no MQTT: {e}")
     finally:
         if grava:
             grava = False
-            time.sleep(1)
         if transmite:
             parar_transmissao()
-        if obs:
-            obs.disconnect()
         client.disconnect()
+        print("✅ Programa encerrado corretamente")
 
 if __name__ == "__main__":
     main()
