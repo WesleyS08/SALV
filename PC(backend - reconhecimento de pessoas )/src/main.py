@@ -70,7 +70,6 @@ def testar_conexao_ip_webcam():
     except Exception as e:
         print(f"❌ Falha ao conectar ao IP Webcam: {str(e)}")
     return False
-
 def configurar_obs_simples():
     def verificar_conexao_obs():
         try:
@@ -107,7 +106,7 @@ def configurar_obs_simples():
         cena_existe = any(cena["sceneName"] == NOME_CENA for cena in cenas)
         
         if not cena_existe:
-            obs.call("CreateScene", {"sceneName": NOME_CENA})
+            obs.send("CreateScene", {"sceneName": NOME_CENA})
             print(f"✅ Cena '{NOME_CENA}' criada")
         else:
             print(f"ℹ️ Cena '{NOME_CENA}' já existe")
@@ -132,7 +131,7 @@ def configurar_obs_simples():
 
         if fonte_existe:
             # Se a fonte existe, atualizar configurações
-            obs.call("SetInputSettings", {
+            obs.send("SetInputSettings", {
                 "inputName": FONTE_VIDEO,
                 "inputSettings": config_webcam
             })
@@ -140,7 +139,7 @@ def configurar_obs_simples():
         else:
             # Criar nova fonte usando a sintaxe correta
             try:
-                obs.call("CreateInput", {
+                obs.send("CreateInput", {
                     "sceneName": NOME_CENA,
                     "inputName": FONTE_VIDEO,
                     "inputKind": "ffmpeg_source",
@@ -152,12 +151,12 @@ def configurar_obs_simples():
                 return False
 
         # 3. Garantir que a fonte está na cena
-        items = obs.call("GetSceneItemList", {"sceneName": NOME_CENA}).scene_items
+        items = obs.send("GetSceneItemList", {"sceneName": NOME_CENA}).scene_items
         fonte_na_cena = any(item["sourceName"] == FONTE_VIDEO for item in items)
 
         if not fonte_na_cena:
             try:
-                obs.call("CreateSceneItem", {
+                obs.send("CreateSceneItem", {
                     "sceneName": NOME_CENA,
                     "sourceName": FONTE_VIDEO,
                     "sceneItemEnabled": True
@@ -169,7 +168,7 @@ def configurar_obs_simples():
 
         # 4. Configurar a cena como ativa
         try:
-            obs.call("SetCurrentProgramScene", {"sceneName": NOME_CENA})
+            obs.send("SetCurrentProgramScene", {"sceneName": NOME_CENA})
             print(f"✅ Cena '{NOME_CENA}' definida como ativa")
             return True
             
