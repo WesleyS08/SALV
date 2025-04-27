@@ -1,8 +1,12 @@
+Flask
+numpy
+opencv-python
+pyvirtualcam
+psutil
+requests
 ultralytics
 mediapipe
-opencv-python
-flask
 paho-mqtt
 python-dotenv
 supabase
-requests
+obsws-python
