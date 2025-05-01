@@ -1,6 +1,7 @@
 # Bibliotecas usadas no projeto:
 
 # Sistema operacional e processos
+import json
 import os
 import time
 import threading
@@ -12,6 +13,7 @@ from flask import Flask, Response
 import numpy as np
 import cv2
 import pyvirtualcam
+from pathlib import Path
 
 
 # Controle de datas e horários
@@ -61,6 +63,8 @@ NOME_CENA = "Detecção"
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 supabase = create_client(supabase_url, supabase_key)
+usuario_id = None
+
 
 # Inicializa variáveis
 obs = None
@@ -639,7 +643,7 @@ def listar_webcams_disponiveis():
     return dispositivos
 
 def on_mqtt_message(client, userdata, msg):
-    global grava, obs, transmite
+    global grava, obs, transmite, usuario_id
     mensagem = msg.payload.decode().lower()
     print(f"MQTT: {mensagem}")
 
@@ -668,6 +672,15 @@ def on_mqtt_message(client, userdata, msg):
             else:
                 print("⚠️ Chave do YouTube não configurada, streaming não iniciado")
 
+            if usuario_id:
+                token = buscar_token_usuario_por_id(usuario_id)
+                if token:
+                    enviar_notificacao(token, "⚠️ Alerta de Segurança", "Acesso negado detectado no sistema SALV recomenda a verificação.")
+                else:
+                    print("❌ Token Expo não encontrado para o usuário.")
+            else:
+                print("⚠️ ID do usuário não definido, notificação não enviada.")
+
         except Exception as e:
             print(f"❌ Erro no processamento: {e}")
             grava = False
@@ -676,54 +689,253 @@ def on_mqtt_message(client, userdata, msg):
         grava = False
         parar_transmissao()
 
-def main():
-    from obsws_python import __version__ as obs_version
-    print(f"Versão obsws-python: {obs_version}")
-    if not iniciar_obs():
-        print("❌ Não foi possível iniciar o OBS")
-        return
 
+def buscar_token_usuario_por_id(usuario_id):
+    resposta = supabase.table("Tb_Usuarios").select("expo_push_token").eq("ID_Usuarios", usuario_id).execute()
+    if resposta.data and resposta.data[0].get("expo_push_token"):
+        return resposta.data[0]["expo_push_token"]
+    return None
+
+
+def enviar_notificacao(token_expo, titulo, corpo):
+    url = 'https://exp.host/--/api/v2/push/send'
+    headers = {
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+    }
+    dados = {
+        'to': token_expo,
+        'title': titulo,
+        'body': corpo,
+        'sound': 'default'
+    }
+    resposta = requests.post(url, headers=headers, json=dados)
+    print(resposta.status_code)
+    print(resposta.json())
+
+def load_config():
+    global OBS_WS_HOST, OBS_WS_PORT, OBS_WS_PASSWORD, NOME_CENA, FONTE_VIDEO
+    global IP_WEBCAM_URL, IP_WEBCAM_STATUS, IP_WEBCAM_USER, IP_WEBCAM_PASS
+    global MQTT_CLUSTER_URL, MQTT_USERNAME, MQTT_PASSWORD
+    global YOUTUBE_STREAM_KEY, SUPABASE_URL, SUPABASE_KEY, usuario_id
+    
+    # Caminho para o arquivo de configuração
+    config_file = Path(__file__).parent / "security_config.json"
+    
+    # Valores padrão
+    default_config = {
+        "OBS_WS_HOST": "192.168.1.6",
+        "OBS_WS_PORT": 4455,
+        "OBS_WS_PASSWORD": os.getenv("OBS_WS_PASSWORD", ""),
+        "NOME_CENA": "Detecção",
+        "FONTE_VIDEO": "Camera_Seguranca",
+        "IP_WEBCAM_URL": "http://192.168.0.167:8080/video",
+        "IP_WEBCAM_STATUS": "http://192.168.0.167:8080/status.json",
+        "IP_WEBCAM_USER": "",
+        "IP_WEBCAM_PASS": "",
+        "MQTT_CLUSTER_URL": os.getenv("MQTT_CLUSTER_URL", ""),
+        "MQTT_USERNAME": os.getenv("MQTT_USERNAME", ""),
+        "MQTT_PASSWORD": os.getenv("MQTT_PASSWORD", ""),
+        "YOUTUBE_STREAM_KEY": os.getenv("YOUTUBE_STREAM_KEY", ""),
+        "SUPABASE_URL": os.getenv("SUPABASE_URL", ""),
+        "SUPABASE_KEY": os.getenv("SUPABASE_KEY", ""),
+        "USUARIO_ID": ""
+    }
+    
+    try:
+        # Verifica se o arquivo de configuração existe
+        if not config_file.exists():
+            print("⚠️ Arquivo de configuração não encontrado. Criando com valores padrão...")
+            with open(config_file, 'w') as f:
+                json.dump(default_config, f, indent=4)
+            config = default_config
+        else:
+            # Carrega o arquivo existente
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+            
+            # Verifica se todas as chaves necessárias existem
+            for key in default_config.keys():
+                if key not in config:
+                    print(f"⚠️ Chave '{key}' faltando no arquivo de configuração. Usando valor padrão.")
+                    config[key] = default_config[key]
+            
+            # Atualiza o arquivo com quaisquer chaves faltantes
+            with open(config_file, 'w') as f:
+                json.dump(config, f, indent=4)
+        
+        # Atualiza variáveis globais
+        OBS_WS_HOST = config["OBS_WS_HOST"]
+        OBS_WS_PORT = int(config["OBS_WS_PORT"])
+        OBS_WS_PASSWORD = config["OBS_WS_PASSWORD"]
+        NOME_CENA = config["NOME_CENA"]
+        FONTE_VIDEO = config["FONTE_VIDEO"]
+        IP_WEBCAM_URL = config["IP_WEBCAM_URL"]
+        IP_WEBCAM_STATUS = config["IP_WEBCAM_STATUS"]
+        IP_WEBCAM_USER = config["IP_WEBCAM_USER"]
+        IP_WEBCAM_PASS = config["IP_WEBCAM_PASS"]
+        MQTT_CLUSTER_URL = config["MQTT_CLUSTER_URL"]
+        MQTT_USERNAME = config["MQTT_USERNAME"]
+        MQTT_PASSWORD = config["MQTT_PASSWORD"]
+        YOUTUBE_STREAM_KEY = config["YOUTUBE_STREAM_KEY"]
+        SUPABASE_URL = config["SUPABASE_URL"]
+        SUPABASE_KEY = config["SUPABASE_KEY"]
+        
+        # Tratamento especial para usuario_id
+        usuario_id = config["USUARIO_ID"]
+        if usuario_id == "":
+            usuario_id = None
+        else:
+            try:
+                usuario_id = int(usuario_id)  # Tenta converter para inteiro
+            except ValueError:
+                pass  # Mantém como string se não for numérico
+        
+        print("✅ Configurações carregadas com sucesso:")
+        print(f"• OBS: {OBS_WS_HOST}:{OBS_WS_PORT}")
+        print(f"• Câmera: {IP_WEBCAM_URL if IP_WEBCAM_URL else 'Câmera local'}")
+        print(f"• Usuário: {'Configurado' if usuario_id else 'Não configurado'}")
+        
+        return True
+        
+    except json.JSONDecodeError:
+        print("❌ Erro ao ler arquivo de configuração (formato inválido). Usando valores padrão.")
+        # Carrega valores padrão
+        for key, value in default_config.items():
+            globals()[key] = value
+        usuario_id = None
+        return False
+        
+    except Exception as e:
+        print(f"❌ Erro inesperado ao carregar configurações: {str(e)}. Usando valores padrão.")
+        # Carrega valores padrão
+        for key, value in default_config.items():
+            globals()[key] = value
+        usuario_id = None
+        return False
+    
+def main():
+    # Configuração inicial
+    print("\n" + "="*50)
+    print("Sistema de Segurança - Inicializando...")
+    print("="*50 + "\n")
+    
+    # 1. Verificar e carregar configurações
+    try:
+        load_config()  # Função que você já tem para carregar do JSON
+        print("✅ Configurações carregadas com sucesso")
+    except Exception as e:
+        print(f"⚠️ Erro ao carregar configurações: {e}")
+        print("⚠️ Usando configurações padrão")
+
+    # 2. Iniciar OBS Studio
+    print("\n[1/4] Verificando OBS Studio...")
+    if not iniciar_obs():
+        print("❌ Falha ao iniciar OBS Studio")
+        return
+    
+    # 3. Conectar ao OBS via WebSocket
+    print("\n[2/4] Conectando ao OBS WebSocket...")
     obs_conectado = False
-    for _ in range(10):
+    for tentativa in range(1, 6):  # 5 tentativas
         if conectar_obs():
             obs_conectado = True
             break
-        print("Tentando conectar novamente...")
-        time.sleep(2)
+        print(f"⚠️ Tentativa {tentativa}/5 falhou. Tentando novamente em 3 segundos...")
+        time.sleep(3)
     
     if not obs_conectado:
-        print("❌ Conexão com OBS falhou após 10tentativas")
+        print("❌ Falha na conexão com OBS após várias tentativas")
         return
 
-    client = mqtt.Client()
-    client.username_pw_set(os.getenv("MQTT_USERNAME"), os.getenv("MQTT_PASSWORD"))
-    client.tls_set()
-    client.on_message = on_mqtt_message
-    flask_thread = threading.Thread(target=iniciar_servidor_flask, daemon=True)
-    flask_thread.start()
-    
+    # 4. Configurar MQTT
+    print("\n[3/4] Configurando MQTT Client...")
     try:
+        client = mqtt.Client()
+        client.username_pw_set(os.getenv("MQTT_USERNAME"), os.getenv("MQTT_PASSWORD"))
+        client.tls_set()
+        client.on_message = on_mqtt_message
+        
+        # Adicionar tratamento para conexão perdida
+        def on_disconnect(client, userdata, rc):
+            if rc != 0:
+                print("❌ Conexão MQTT perdida inesperadamente! Tentando reconectar...")
+                while True:
+                    try:
+                        client.reconnect()
+                        print("✅ Reconectado ao MQTT")
+                        break
+                    except Exception as e:
+                        print(f"⚠️ Falha na reconexão: {e}. Tentando novamente em 5 segundos...")
+                        time.sleep(5)
+        
+        client.on_disconnect = on_disconnect
+        
+        # Conectar e subscrever
         client.connect(os.getenv("MQTT_CLUSTER_URL"), 8883)
         client.subscribe("alert")
-        print("✅ Conectado ao MQTT. Aguardando alertas...")
-        
+        print("✅ MQTT configurado e conectado")
+    except Exception as e:
+        print(f"❌ Erro na configuração MQTT: {e}")
+        return
+
+    # 5. Iniciar servidor Flask em thread separada
+    print("\n[4/4] Iniciando servidor Flask...")
+    flask_thread = threading.Thread(target=iniciar_servidor_flask, daemon=True)
+    flask_thread.start()
+    print("✅ Servidor Flask iniciado em http://localhost:5000")
+
+    # 6. Configuração inicial do banco de dados
+    try:
         atualizar_ao_vivo_no_db(False)
-        
+        print("✅ Status 'Ao Vivo' atualizado no banco de dados")
+    except Exception as e:
+        print(f"⚠️ Erro ao atualizar status no banco de dados: {e}")
+
+    # 7. Informações do sistema
+    print("\n" + "="*50)
+    print("Sistema pronto e aguardando alertas")
+    print(f"• Usuário configurado: {'Sim' if usuario_id else 'Não'}")
+    print(f"• Câmera principal: {IP_WEBCAM_URL if IP_WEBCAM_URL else 'Câmera local'}")
+    print(f"• Cena OBS: {NOME_CENA}")
+    print("="*50 + "\n")
+
+    # 8. Loop principal com tratamento de exceções
+    try:
         client.loop_forever()
-        
-    except Exception as e: 
-        print(f"❌ Erro na conexão MQTT: {e}")
+    except KeyboardInterrupt:
+        print("\n👋 Recebido comando para encerrar...")
+    except Exception as e:
+        print(f"❌ Erro inesperado: {e}")
     finally:
+        # Rotina de encerramento
         print("\nEncerrando recursos...")
+        
+        # Parar transmissão se estiver ativa
+        if transmite:
+            try:
+                parar_transmissao()
+                print("✅ Transmissão encerrada")
+            except Exception as e:
+                print(f"⚠️ Erro ao parar transmissão: {e}")
+        
+        # Desconectar OBS
         if obs:
             try:
                 obs.disconnect()
-                print("✅ Desconectado do OBS.")
+                print("✅ Desconectado do OBS")
             except Exception as e:
                 print(f"⚠️ Erro ao desconectar do OBS: {e}")
-        client.disconnect()
-        print("✅ Desconectado do MQTT.")
-        print("✅ Recursos liberados. Aplicação encerrada.")
+        
+        # Desconectar MQTT
+        try:
+            client.disconnect()
+            print("✅ Desconectado do MQTT")
+        except Exception as e:
+            print(f"⚠️ Erro ao desconectar do MQTT: {e}")
+        
+        print("\n✅ Sistema encerrado com sucesso\n")
 
 if __name__ == "__main__":
     main()

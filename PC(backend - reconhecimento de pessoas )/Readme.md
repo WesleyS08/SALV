@@ -1,128 +1,144 @@
-# 🛡️ Sistema de Detecção e Gravação com YOLOv8, MediaPipe, Flask, MQTT e Supabase
+# 🛡️ Sistema de Segurança Inteligente com OBS, YOLOv8 e Supabase
 
-Este projeto é um sistema completo de detecção de pessoas e rostos em vídeo, com funcionalidades como:
+Sistema completo de monitoramento de segurança com detecção de pessoas/rostos, transmissão ao vivo, gravação automatizada e integração com múltiplos serviços.
 
-- Detecção de pessoas com **YOLOv8**
-- Detecção de rostos com **MediaPipe**
-- Transmissão ao vivo via **Flask**
-- Controle via mensagens MQTT (ESP32-CAM)
-- Upload e registro automático de gravações no **Supabase**
-- Integração com **ngrok** para expor a câmera via internet
+## 🌟 Funcionalidades Principais
 
----
+- **🎥 Captura de Vídeo Flexível**
+  - Suporte para câmeras locais e IP
+  - Fallback automático entre fontes de vídeo
+  - Teste de conexão integrado
 
-## 🚀 Funcionalidades
+- **🤖 Detecção Inteligente**
+  - Detecção de pessoas com YOLOv8
+  - Identificação de rostos com MediaPipe
+  - Exibição em tempo real com anotações
 
-- 🧠 **Detecção de Pessoas e Rostos:** Utiliza YOLOv8 para detectar pessoas e MediaPipe para detectar rostos dentro das caixas de detecção de corpo.
-- 🎥 **Gravação de vídeo:** Inicia gravação automática ao receber um alerta `acesso negado` via MQTT.
-- ☁️ **Upload para Supabase Storage:** Ao final da gravação, o vídeo é enviado para o Supabase e suas informações são salvas em uma tabela.
-- 🌐 **Transmissão em tempo real:** O vídeo ao vivo é acessível por Flask no endereço ou usando o ngrok `http://localhost:5000`.
-- 🔒 **Controle via MQTT:** A gravação é iniciada ou encerrada com base em comandos recebidos do tópico MQTT `"alert"`.
+- **📡 Transmissão e Gravação**
+  - Integração completa com OBS Studio via WebSocket
+  - Transmissão automática para YouTube
+  - Gravação local em formato MKV
+  - Upload automático para Supabase Storage
 
----
+- **☁️ Integração em Nuvem**
+  - Armazenamento de vídeos no Supabase
+  - Registro de eventos no banco de dados
+  - Notificações push via Expo
 
-## ⚙️ Como Funciona
+- **🔌 Comunicação**
+  - Controle via MQTT (ESP32-CAM)
+  - API REST com Flask para streaming
+  - Interface gráfica de configuração (Tkinter)
+--- 
+## 📦 Estrutura do Projeto
 
-### 1. Carregamento dos Modelos
-```python
-yolo_model = YOLO("yolov8n.pt")  # Modelo YOLOv8
-face_detector = mp_face_detection.FaceDetection(...)
-```
+```sistema-seguranca/
+├── src/
+│ ├── main.py # Ponto de entrada principal
+│ ├── config_gui.py # Interface de configuração
+│ ├── security_config.json # Configurações públicas
+│ ├── .env # Variáveis sensíveis
+│ ├── models/
+│ │ └── yolov8n.pt # Modelo YOLO
+│ └── gravacoes/ # Pasta para gravações locais
+├── requirements.txt # Dependências
+└── README.md
+ ```
+--- 
+## ⚙️ Pré-requisitos
 
-### 2. Início automático da câmera
+- Python 3.8+
+- OBS Studio (com WebSocket habilitado)
+- Conta no Supabase
+- Acesso a um broker MQTT
+--- 
+## 🚀 Como Executar
 
- câmera é iniciada assim que a gravação começa *(acesso negado)* e finalizada quando o alerta é cancelado *(acesso liberado)*.
-
-### 3. Detecção e Gravação
-
-Durante a gravação:
-
-- Cada frame é analisado.
-
-- Se houver uma pessoa, é desenhado um retângulo.
-
-- Se houver um rosto, ele é exibido em close-up no canto superior direito.
-
-- O vídeo é salvo localmente e depois enviado ao Supabase.
-
-### 4. Upload + Registro
-
-```python
-# Envia o vídeo
-enviar_video_supabase()
-
-# Registra no banco de dados Supabase
-salvar_informacoes_filmagem()
-```
----
-## 🧪 Como Executar
-
- 1. Instale os requisitos:
-```python
+1. **Instalação**
+```bash
 pip install -r requirements.txt
-```
- 2. Crie o arquivo .env com suas chaves:
+ ```
 
-```env
-MQTT_USERNAME=seu_usuario
-MQTT_PASSWORD=sua_senha
-MQTT_CLUSTER_URL=broker.exemplo.com
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_KEY=sua_chave
-```
- 3. Execute o script:
+
+2. **Configuração**
 
 ```bash
-python main.py
-```
----
-## 📡 Tópicos MQTT
+Preencha o .env com suas credenciais
+
+Configure o OBS WebSocket (host: 192.168.1.6, porta: 4455)
+ ```
+
+Ou 
+
+```bash
+# Opção 2: Interface gráfica (recomendado)
+python config_gui.py
+ ```
+
+--- 
+## 🎛️ Controle via MQTT
+
 
 | **Mensagem recebida**               | **Ação**                                                                                  |
 |:------------------------------------:|:-----------------------------------------------------------------------------------------------:|
 | **"acesso negado"**         | Inicia a gravação                |
 | **"alerta cancelado, acesso liberado"**                | Encerra a gravação                                            |
 ---
-## 📁 Estrutura do Projeto
 
-```bash
-.src
-├── main.py
-├── gravacoes/
-│   └── gravacao_2024....avi
-├── models/
-│   └── yolov8n.pt
-├── .env
-└── README.md
-```
+## ⚠️ Solução de Problemas Comuns
+
+### ❌ Problema: OBS não conecta
+
+**Soluções possíveis:**
+1. Certifique-se de que o **OBS Studio** está aberto.
+2. Verifique se o **WebSocket está ativado**:
+   - Vá em `Ferramentas` > `WebSocket Server Settings` no OBS.
+3. Confirme se o **host**, a **porta** e a **senha** estão corretos nas configurações de conexão.
+
 ---
-## 📌 Observações
 
-O ngrok está configurado para rodar. Comente a linha abaixo caso seu ambiente nao esteja configurado para tal:
+### ❌ Problema: OBS não inicia a live
+
+**Soluções possíveis:**
+1. Certifique-se de que o **OBS Studio** está devidamente configurado.
+2. Verifique se a **transmissão está correta**:
+   - Vá em `Arquivo` > `Configurações` > `Transmissão` e selecione `Serviço = Personalizado`.
+3. Confirme se o **servidor**, a **chave de transmissão**, o **nome de usuário** e a **senha** estão corretos.
+   - ⚠️ Essas informações podem ser encontradas na plataforma de transmissão utilizada (no nosso caso, o YouTube fornece esses dados).
+
+---
+
+### ❌ Problema: Câmera IP não responde
+
+**Soluções possíveis:**
+1. Teste a URL da câmera no **VLC Media Player**.
+2. Verifique as **credenciais e a URL** definidas no executável `config_gui.py`.
+
+---
+
+### ❌ Problema: Upload falha no Supabase
+
+**Soluções possíveis:**
+1. Verifique se as **chaves de acesso** estão corretas no executável `config_gui.py`.
+2. Confira as **permissões do bucket** no Supabase (leitura, escrita e acesso público, se necessário).
+ ---
+## 🔧 Personalização
+
+### 🧠 Modelo YOLO
+Substitua o arquivo `yolov8n.pt` por outro modelo YOLOv8 de sua escolha dentro da pasta `models/`.
+
+---
+
+### 🎥 Layout no OBS
+Edite os valores de `NOME_CENA` e `FONTE_VIDEO` no arquivo `config_gui.py` para corresponder às suas configurações do OBS.
+
+---
+
+### 📐 Resolução da Câmera
+Você pode ajustar a resolução da captura de vídeo no arquivo `main.py`. Exemplo:
 
 ```python
-threading.Thread(target=start_ngrok).start()
+cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)  # ← Altere aqui a largura desejada
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)  # ← Altere aqui a altura desejada
 ```
-- O cv2.VideoCapture(1) indica que sua câmera está no índice 1. Se não funcionar, troque por 0.
-
-- Para evitar o erro could not broadcast input array, certifique-se que o rosto detectado tenha dimensão válida antes de usar cv2.resize.
----
-
-## 🧠 Tecnologias Utilizadas
-
-- YOLOv8 (Ultralytics)
-
-- MediaPipe
-
-- OpenCV
-
-- Flask
-
-- Supabase
-
-- MQTT (paho-mqtt)
-
-- dotenv
-
-- Ngrok
-
