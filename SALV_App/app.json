@@ -18,8 +18,11 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/img/adaptive-icon.png",
         "backgroundColor": "#0D283D"
-      }
-    },
+      },
+      "permissions": [
+        "NOTIFICATIONS"
+      ]
+  },
     "web": {
       "bundler": "metro",
       "output": "static",

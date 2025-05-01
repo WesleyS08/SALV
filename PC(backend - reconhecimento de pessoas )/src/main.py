@@ -266,7 +266,7 @@ def configurar_e_iniciar_stream_youtube():
                 obs.start_stream()
                 transmite = True
                 print("🎥 Transmissão iniciada automaticamente!")
-                url_live = "https://www.youtube.com/watch?v=Jcw0ijN64ww"
+                url_live = "https://youtube.com/live/GTyBg0GOm7Q?feature=share"
                 if url_live:
                     print(f"🔗 URL da transmissão: {url_live}")
                     try:

@@ -7,6 +7,7 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFontSize } from '../Global/FontSizeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -14,7 +15,8 @@ const AoVivo = ({ navigation }) => {
     const { isDarkMode } = useDarkMode();
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
     const { user } = useAuth();
-    const { userData, isLiveActive, ngrokLink } = useUserData(user);
+    const { userData, isLiveActive, ngrokLink, updatedAtFormatted } = useUserData(user);
+    const { fontSize, setFontSize } = useFontSize();
     
     const playerRef = useRef<any>(null);
     const [playerError, setPlayerError] = useState(false);
@@ -55,6 +57,11 @@ const AoVivo = ({ navigation }) => {
             ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
         }
     };
+    const [streamInfo, setStreamInfo] = useState({
+        isLive: false,
+        lastStream: "",
+        viewers: 0
+    });
 
     const handlePress = () => {
         const url = ngrokLink || `https://www.youtube.com/watch?v=wACTDUyZEws`;
@@ -86,10 +93,10 @@ const AoVivo = ({ navigation }) => {
                             style={styles.profileImage}
                         />
                         <View style={styles.userInfo}>
-                            <Text style={styles.userName} numberOfLines={1}>
+                            <Text style={[styles.userName,  { fontSize }]} numberOfLines={1}>
                                 {userData?.Nome || user?.displayName || 'Usuário'}
                             </Text>
-                            <Text style={styles.userEmail} numberOfLines={1}>
+                            <Text style={[styles.userEmail , { fontSize }]} numberOfLines={1}>
                                 {user?.email || 'email@exemplo.com'}
                             </Text>
                         </View>
@@ -99,7 +106,7 @@ const AoVivo = ({ navigation }) => {
 
             {/* Área principal de conteúdo */}
             <View style={styles.content}>
-                <Text style={[styles.title, themeStyles.text]}>TRANSMISSÃO AO VIVO</Text>
+                <Text style={[styles.title, themeStyles.text, { fontSize }]}>TRANSMISSÃO AO VIVO</Text>
                 
                 {isLiveActive ? (
                     !playerError ? (
@@ -127,21 +134,21 @@ const AoVivo = ({ navigation }) => {
                     ) : (
                         <View style={[styles.placeholder, themeStyles.placeholder]}>
                             <Ionicons name="alert-circle" size={60} color="#FF6B6B" />
-                            <Text style={[styles.placeholderText, themeStyles.text]}>
+                            <Text style={[styles.placeholderText, themeStyles.text, { fontSize }]}>
                                 Erro ao carregar a transmissão
                             </Text>
                             <TouchableOpacity 
                                 style={styles.retryButton}
                                 onPress={handleRetry}
                             >
-                                <Text style={styles.retryButtonText}>Tentar novamente</Text>
+                                <Text style={[styles.retryButtonText, { fontSize }]}>Tentar novamente</Text>
                             </TouchableOpacity>
                         </View>
                     )
                 ) : (
                     <View style={[styles.placeholder, themeStyles.placeholder]}>
                         <Ionicons name="videocam-off" size={60} color="#888" />
-                        <Text style={[styles.placeholderText, themeStyles.text]}>
+                        <Text style={[styles.placeholderText, themeStyles.text, { fontSize }]}>
                             Nenhuma transmissão no momento
                         </Text>
                     </View>
@@ -151,7 +158,7 @@ const AoVivo = ({ navigation }) => {
                 <View style={[styles.infoCard, themeStyles.infoCard]}>
                     <View style={styles.infoRow}>
                         <Ionicons name="time" size={20} color="#4CAF50" />
-                        <Text style={[styles.infoLabel, themeStyles.secondaryText]}>Status:</Text>
+                        <Text style={[styles.infoLabel, themeStyles.secondaryText, { fontSize }]}>Status:</Text>
                         <Text style={[styles.infoValue, themeStyles.text]}>
                             {isLiveActive ? "Ao vivo agora" : "Offline"}
                         </Text>
@@ -159,15 +166,10 @@ const AoVivo = ({ navigation }) => {
                     
                     <View style={styles.infoRow}>
                         <Ionicons name="calendar" size={20} color="#2196F3" />
-                        <Text style={[styles.infoLabel, themeStyles.secondaryText]}>Última transmissão:</Text>
-                        <Text style={[styles.infoValue, themeStyles.text]}>Hoje, 15:30</Text>
+                        <Text style={[styles.infoLabel, themeStyles.secondaryText, { fontSize }]}>Última transmissão:</Text>
+                        <Text style={[styles.infoValue, themeStyles.text, { fontSize }]}> {updatedAtFormatted  ?? 'Indisponível'}</Text>
                     </View>
                     
-                    <View style={styles.infoRow}>
-                        <Ionicons name="people" size={20} color="#FF9800" />
-                        <Text style={[styles.infoLabel, themeStyles.secondaryText]}>Visualizações:</Text>
-                        <Text style={[styles.infoValue, themeStyles.text]}>1,245</Text>
-                    </View>
                 </View>
 
                 {/* Ações */}
@@ -180,19 +182,12 @@ const AoVivo = ({ navigation }) => {
                         <Text style={styles.actionButtonText}>Assistir</Text>
                     </TouchableOpacity>
                     
-                    <TouchableOpacity 
-                        style={[styles.actionButton, styles.secondaryButton]}
-                        onPress={() => {}}
-                    >
-                        <Ionicons name="notifications" size={20} color="#0D293E" />
-                        <Text style={[styles.actionButtonText, {color: '#0D293E'}]}>Notificar-me</Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* Descrição */}
                 <View style={[styles.descriptionCard, themeStyles.card]}>
-                    <Text style={[styles.descriptionTitle, themeStyles.text]}>Sobre a transmissão</Text>
-                    <Text style={[styles.descriptionText, themeStyles.secondaryText]}>
+                    <Text style={[styles.descriptionTitle, themeStyles.text, { fontSize }]}>Sobre a transmissão</Text>
+                    <Text style={[styles.descriptionText, themeStyles.secondaryText, { fontSize }]}>
                         Acompanhe nossa transmissão ao vivo com os melhores conteúdos. 
                         Quando estivermos no ar, você será notificado automaticamente.
                     </Text>

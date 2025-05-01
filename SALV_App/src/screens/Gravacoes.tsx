@@ -1,19 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image } from 'react-native';
+import { Video } from 'expo-av'; // Importando o componente Video do expo-av
 import { useUserData } from '../contexts/useUserData';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../Global/DarkModeContext';
-
+import { useFontSize } from '../Global/FontSizeContext';
 
 const Gravacoes = () => {
     const { isDarkMode } = useDarkMode();
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
-  
     const { user } = useAuth();
-    const { userData } = useUserData(user);
-  
-    
+    const { userData, filmagens } = useUserData(user);
+    const { fontSize, setFontSize } = useFontSize();
+
+    const abrirLink = (url) => {
+        // Função para abrir o link do vídeo
+        console.log('Abrir link:', url);
+    };
+
     return (
         <View style={[styles.container, themeStyles.container]}>
             <View style={styles.header}>
@@ -21,66 +25,86 @@ const Gravacoes = () => {
                     <Image
                         source={
                             userData?.photoURL
-                            ? { uri: userData.photoURL }
-                            : require('../../assets/img/user.png')
+                                ? { uri: userData.photoURL }
+                                : require('../../assets/img/user.png')
                         }
                         style={styles.profileImage}
                     />
                     <View style={styles.userInfo}>
-                        <Text style={[styles.userName, themeStyles.text]} numberOfLines={1}>
+                        <Text style={[styles.userName, themeStyles.text, { fontSize }]} numberOfLines={1}>
                             {userData?.Nome || user?.displayName || 'Usuário'}
                         </Text>
-                        <Text style={[styles.userEmail, themeStyles.secondaryText]} numberOfLines={1}>
+                        <Text style={[styles.userEmail, themeStyles.secondaryText, { fontSize }]} numberOfLines={1}>
                             {user?.email || 'email@exemplo.com'}
                         </Text>
                     </View>
                 </View>
             </View>
-            
-            <Text style={[styles.text2, themeStyles.text]}>Gravações Registradas</Text>
-            <Text style={[styles.text3, themeStyles.text]}>Todas as gravações capturadas do seu ambiente, serão exibidas e disponibilizadas para download.</Text>
-            <View style={[styles.base, themeStyles.base]}>
-                 <Text style={[styles.text4, themeStyles.text]}>
-                    Nenhuma Gravação Encontrada
-                </Text>  
-                  <View style={{ marginTop: 20 }}>
-                    <Image
-                        source={require('../../assets/img/image.png')}
-                        style={[styles.img, themeStyles.img]}
-                    />
-                    </View>
 
+            <Text style={[styles.text2, themeStyles.text, { fontSize }]}>Gravações Registradas</Text>
+            <Text style={[styles.text3, themeStyles.text, { fontSize }]}>Todas as gravações capturadas do seu ambiente, serão exibidas e disponibilizadas para download.</Text>
+            <View style={[styles.base, themeStyles.base]}>
+                {filmagens.length === 0 ? (
+                    <>
+                        <Text style={[styles.text4, themeStyles.text, { fontSize }]}>
+                            Nenhuma Gravação Encontrada
+                        </Text>
+                        <View style={{ marginTop: 20 }}>
+                            <Image
+                                source={require('../../assets/img/image.png')}
+                                style={[styles.img, themeStyles.img]}
+                            />
+                        </View>
+                    </>
+                ) : (
+                    <FlatList
+                        data={filmagens}
+                        keyExtractor={(item) => item.id.toString()}
+                        renderItem={({ item }) => (
+                            <View style={styles.itemContainer}>
+                                <Text style={[styles.textItem, themeStyles.text, { fontSize }]}>
+                                    📅 {item.data} ⏰ {item.hora_inicio} - {item.hora_fim}
+                                </Text>
+                                <Text style={[styles.textItem, themeStyles.secondaryText, { fontSize: fontSize - 2 }]}>
+                                    Evento: {item.evento} | Duração: {item.duracao}
+                                </Text>
+                                {/* Reprodutor de vídeo usando expo-av */}
+                                <View style={{ marginTop: 10, width: '100%', height: 200 }}>
+                                    {item.url_video ? (
+                                        <Video
+                                            source={{ uri: item.url_video }} // Usando a URL do vídeo
+                                            style={{ width: '100%', height: '100%' }}
+                                            useNativeControls
+                                            resizeMode="contain"
+                                        />
+                                    ) : (
+                                        <Text style={[styles.text4, themeStyles.text, { fontSize }]}>
+                                            Vídeo não disponível
+                                        </Text>
+                                    )}
+                                </View>
+                            </View>
+                        )}
+                    />
+                )}
             </View>
-            
-           
-    
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-
-  img: {
-    width: 24,
-    height: 24,
-    borderStyle: 'solid',
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 1.0)"
-  },
-    link3: {
-        fontSize: 16,
-        color: '#000',
-        fontWeight: 'bold',
-        marginTop: 60,
-        textAlign: 'center',
-        width: '80%',
-        alignSelf: 'center',
+    img: {
+        width: 24,
+        height: 24,
+        borderStyle: 'solid',
+        borderWidth: 2,
+        borderColor: "rgba(255, 255, 255, 1.0)"
     },
     link: {
         color: 'blue',
         fontWeight: 'bold',
         textDecorationLine: 'underline'
-      },
+    },
     container: {
         flex: 1,
         padding: 20,
@@ -125,24 +149,22 @@ const styles = StyleSheet.create({
         height: 478,
         borderRadius: 14,
         backgroundColor: "#D9D9D9",
-        shadowColor: "#000",       // Cor da sombra
+        shadowColor: "#000",       
         shadowOffset: {
-            width: 0,            // Deslocamento horizontal
-            height: 2,           // Deslocamento vertical
+            width: 0,            
+            height: 2,           
         },
-        shadowOpacity: 0.25,      // Opacidade (0 a 1)
-        shadowRadius: 3.84,       // Raio do borrão
-        // Sombra para Android
-        elevation: 5,            // Nível de elevação (Android)
+        shadowOpacity: 0.25,      
+        shadowRadius: 3.84,       
+        elevation: 5,            
     },
     text4: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: '#000',
-      textAlign: 'center',
-      marginTop: 20,
-  },
-    
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#000',
+        textAlign: 'center',
+        marginTop: 20,
+    },
     text2: {
         fontSize: 18,
         fontWeight: 'bold',
@@ -151,39 +173,24 @@ const styles = StyleSheet.create({
         marginTop: 20,
     },
     text3: {
-      fontSize: 16,
-      color: '#000',
-      textAlign: 'center',
-      marginTop: 20,
-  },
-    text: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginTop: 250,
-        textAlign: 'center',
-    },
-    text1: {
         fontSize: 16,
-        fontWeight: 'bold',
         color: '#000',
-        marginTop: 30,
         textAlign: 'center',
-        width: '80%',
-        alignSelf: 'center',
+        marginTop: 20,
+    },
+    textItem: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#000',
     },
 });
 
 const darkStyles = StyleSheet.create({
-  
     container: {
         backgroundColor: '#121212',
     },
     base: {
         backgroundColor: '#1e1e1e',
-    },
-    img: {
-        backgroundColor: '#2d2d2d',
     },
     text: {
         color: '#ffffff',
@@ -191,7 +198,7 @@ const darkStyles = StyleSheet.create({
     secondaryText: {
         color: '#bdc3c7',
     },
-    link3:{
+    link: {
         color: '#ffffff',
     }
 });
@@ -203,16 +210,13 @@ const lightStyles = StyleSheet.create({
     base: {
         backgroundColor: '#ffffff',
     },
-    img: {
-        backgroundColor: 'dark',
-    },
     text: {
         color: '#2c3e50',
     },
     secondaryText: {
         color: '#7f8c8d',
-    }, 
-    link3:{
+    },
+    link: {
         color: '#2c3e50',
     }
 });

@@ -11,6 +11,7 @@ import 'moment/locale/pt-br';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { useFontSize } from '../Global/FontSizeContext';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
+import supabase from '../DB/supabase';
 
 moment.locale('pt-br');
 
@@ -82,7 +83,7 @@ const Home = ({ navigation }: any) => {
   
       const { error } = await supabase
         .from('Tb_Usuarios')
-        .update({ expo_push_token: token }) // salva o token no banco
+        .update({ expo_push_token: token }) 
         .eq('ID_Usuarios', user.uid);
   
       if (error) {
@@ -92,6 +93,7 @@ const Home = ({ navigation }: any) => {
   
     saveToken();
   }, [user]);
+
   const handleOpenVideo = (url: string) => {
     Linking.canOpenURL(url).then(supported => {
       if (supported) {
@@ -279,7 +281,7 @@ const Home = ({ navigation }: any) => {
             <FlatList
               data={acessos}
               renderItem={renderAcessoItem}
-              keyExtractor={(item) => item.UID}
+              keyExtractor={(item, index) => `${item.UID}-${index}`}
               scrollEnabled={false}
               ListEmptyComponent={
                 <Text style={[styles.emptyText, themeStyles.secondaryText , { fontSize }]}>
@@ -292,7 +294,7 @@ const Home = ({ navigation }: any) => {
             <FlatList
               data={filmagens}
               renderItem={renderFilmagemItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item, index) => `${item.id}-${index}`}
               scrollEnabled={false}
               ListEmptyComponent={
                 <Text style={[styles.emptyText, themeStyles.secondaryText , { fontSize }]}>
