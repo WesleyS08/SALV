@@ -1,6 +1,4 @@
-# Bibliotecas usadas no projeto:
-
-# Sistema operacional e processos
+# 1. Sistema Operacional e Processos
 import json
 import os
 import time
@@ -9,39 +7,43 @@ import subprocess
 import psutil
 from flask import Flask, Response
 
-# Manipulação de imagens e vídeos
+# 2. Manipulação de Imagens e Vídeos
 import numpy as np
 import cv2
 import pyvirtualcam
 from pathlib import Path
 
-
-# Controle de datas e horários
+# 3. Controle de Datas e Horários
 from datetime import datetime
 
-# Integração com o OBS Studio (gravação/transmissão)
+# 4. Integração com o OBS Studio (Gravação/Transmissão)
 import obsws_python
 from obsws_python import ReqClient
 import obsws_python as obs
 
-# Comunicação HTTP
+# 5. Comunicação HTTP
 import requests
 
-# Modelo de detecção de objetos (YOLO)
+# 6. Modelo de Detecção de Objetos (YOLO)
 from ultralytics import YOLO
 
-# Detecção de rostos e poses (MediaPipe)
+# 7. Detecção de Rostos e Poses (MediaPipe)
 import mediapipe as mp
 
-# Comunicação via MQTT (mensageria)
+# 8. Comunicação via MQTT (Mensageria)
 import paho.mqtt.client as mqtt
 
-# Carregamento de variáveis de ambiente (.env)
+# 9. Carregamento de Variáveis de Ambiente (.env)
 from dotenv import load_dotenv
 
-# Integração com banco de dados Supabase
+# 10. Integração com Banco de Dados Supabase
 from supabase import create_client, Client
 
+# 11. Google OAuth2 (Autenticação com Google)
+import requests
+import pickle
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 
 
 
@@ -72,6 +74,10 @@ grava = False
 transmite = False
 fps = 30  
 
+SCOPES = ['https://www.googleapis.com/auth/youtube.readonly']
+# Caminho para salvar os tokens
+TOKEN_PICKLE  = os.path.join(os.getcwd(), 'src', 'token.pickle')
+client_secrets_file = os.path.join(os.getcwd(), 'src', 'client_secret.json')
 # Modelos
 yolo_model = YOLO(os.path.join(BASE_DIR, "models", "yolov8n.pt"))
 mp_face = mp.solutions.face_detection
@@ -239,14 +245,90 @@ def configurar_cena_obs(nome_fonte="Camera_Seguranca"):
         
         return False
 
+
+# Definir o escopo de acesso do YouTube
+SCOPES = ['https://www.googleapis.com/auth/youtube.readonly']
+
+def authenticate():
+    print("Diretório atual:", os.getcwd())
+    creds = None
+
+    # Verificar se o arquivo client_secret.json existe na pasta 'src'
+    client_secrets_file = os.path.join(os.getcwd(), 'src', 'client_secret.json')
+    if not os.path.exists(client_secrets_file):
+        print(f"❌ O arquivo {client_secrets_file} não foi encontrado. Por favor, verifique o caminho.")
+        return None
+
+    # Verificar se já existe um token salvo
+    if os.path.exists(TOKEN_PICKLE):
+        with open(TOKEN_PICKLE, 'rb') as token:
+            creds = pickle.load(token)
+
+    # Se não houver credenciais ou o token estiver expirado, fazer o login novamente
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            # Realizar o fluxo de autenticação
+            flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        # Salvar as credenciais para usar futuramente
+        with open(TOKEN_PICKLE, 'wb') as token:
+            pickle.dump(creds, token)
+
+    return creds.token
+
+# Função para obter o channelId
+def get_channel_id(access_token):
+    # URL para obter as informações do canal
+    url = 'https://www.googleapis.com/youtube/v3/channels'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {'part': 'snippet', 'mine': 'true'}
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        print("❌ Erro ao obter o Channel ID:", response.status_code, response.text)
+        return None
+    return response.json()['items'][0]['id']  # Retorna o channelId
+# Função para buscar transmissões ao vivo no canal
+def get_live_broadcasts(channel_id, access_token):
+    # URL para buscar transmissões ao vivo no canal
+    url = 'https://www.googleapis.com/youtube/v3/search'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {
+        'part': 'snippet',
+        'channelId': channel_id,
+        'eventType': 'live',  # Filtra para transmissões ao vivo
+        'type': 'video',  # Garante que é um vídeo
+        'maxResults': 1  # Pega o primeiro resultado
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        print("❌ Erro ao buscar transmissões ao vivo:", response.status_code, response.text)
+        return None
+
+    live_broadcasts = response.json()['items']
+    if live_broadcasts:
+        # Retorna o link da primeira transmissão ao vivo encontrada
+        live_video_id = live_broadcasts[0]['id']['videoId']
+        live_url = f'https://www.youtube.com/watch?v={live_video_id}'
+        return live_url
+    else:
+        print("❌ Não há transmissões ao vivo no momento.")
+        # Retorna um link de fallback
+        return "https://youtube.com/live/Qiiv3ySXIgk?feature=share"
+
 # Função para configurar e iniciar a transmissão no YouTube
 def configurar_e_iniciar_stream_youtube():
     global transmite
     max_tentativas = 3
     tentativa = 0
-    
+
     while tentativa < max_tentativas:
         try:
+            # Verifique se o OBS está conectado
             if obs is None:
                 print("OBS não está conectado! Tentando reconectar...")
                 if not conectar_obs():
@@ -265,20 +347,36 @@ def configurar_e_iniciar_stream_youtube():
 
                 obs.start_stream()
                 transmite = True
-                print("🎥 Transmissão iniciada automaticamente!")
-                url_live = "https://youtube.com/live/GTyBg0GOm7Q?feature=share"
-                if url_live:
-                    print(f"🔗 URL da transmissão: {url_live}")
-                    try:
-                        supabase.table('ngrok_links').upsert({
-                            'id': 1,
-                            'url': url_live,
-                            'AoVivo': True
-                        }).execute()
-                    except Exception as e:
-                        print(f"⚠️ Erro ao salvar URL no Supabase: {e}")
+                print("🎥 iNICIANDO A Transmissão iniciada automaticamente!")
+
+
+                
+                # Adicionando o delay de X segundos (por exemplo, 10 segundos)
+                time.sleep(60)
+
+                # Obtenha a URL da transmissão ao vivo
+                access_token = authenticate()  # Obtenha o token de acesso
+                if access_token:
+                    channel_id = get_channel_id(access_token)
+                    if channel_id:
+                        live_url = get_live_broadcasts(channel_id, access_token)
+                        print(f"🔗 URL da transmissão ao vivo: {live_url}")
+
+                        # Salve a URL no banco de dados
+                        try:
+                            supabase.table('ngrok_links').upsert({
+                                'id': 1,
+                                'url': live_url,
+                                'AoVivo': True
+                            }).execute()
+                            print(f"⚠️ Sucesso ao salvar URL no Supabase.")
+                        except Exception as e:
+                            print(f"⚠️ Erro ao salvar URL no Supabase: {e}")
+                    else:
+                        print("⚠️ Não foi possível obter o Channel ID")
                 else:
-                    print("⚠️ Não foi possível obter URL da transmissão")
+                    print("⚠️ Erro na autenticação do Google")
+
                 return True
             else:
                 print("OBS já está transmitindo!")
@@ -288,10 +386,12 @@ def configurar_e_iniciar_stream_youtube():
             print(f"Erro ao iniciar transmissão (tentativa {tentativa + 1}/{max_tentativas}): {e}")
             time.sleep(2)
             tentativa += 1
-    
+
     print("Falha ao iniciar transmissão após várias tentativas")
     return False
-    
+
+
+
 # Função para verificar as configurações de stream atuais
 def debug_stream_settings():
     try:
