@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Image, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, Linking} from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Modal, Image, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, Linking, Platform} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/useUserData';
@@ -11,7 +11,6 @@ import 'moment/locale/pt-br';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { useFontSize } from '../Global/FontSizeContext';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
-import supabase from '../DB/supabase';
 
 moment.locale('pt-br');
 
@@ -74,35 +73,6 @@ const Home = ({ navigation }: any) => {
 
     checkAccess();
   }, []);
-  useEffect(() => {
-    const saveToken = async () => {
-      if (!user) return;
-  
-      const token = await registerForPushNotificationsAsync();
-      if (!token) return;
-  
-      const { error } = await supabase
-        .from('Tb_Usuarios')
-        .update({ expo_push_token: token }) 
-        .eq('ID_Usuarios', user.uid);
-  
-      if (error) {
-        console.error('Erro salvando push token:', error.message);
-      }
-    };
-  
-    saveToken();
-  }, [user]);
-
-  const handleOpenVideo = (url: string) => {
-    Linking.canOpenURL(url).then(supported => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        setToastMessage('Não foi possível abrir o vídeo');
-      }
-    });
-  };
 
   const renderAcessoItem = ({ item }: { item: any }) => (
     <View style={[styles.itemContainer, themeStyles.itemContainer]}>
@@ -420,7 +390,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeTabButton: {
-    backgroundColor: '#0D293E',
+    backgroundColor: '#ccc',
   },
   tabButtonText: {
     fontSize: 14,
@@ -550,7 +520,7 @@ const styles = StyleSheet.create({
 // Temas
 const lightStyles = StyleSheet.create({
   activeTabButton: {
-    backgroundColor: '#0D293E',
+    backgroundColor: '#7f8c8d',
   },
   container: {
     backgroundColor: '#f8f9fa',
@@ -572,7 +542,7 @@ const lightStyles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   tabButtonText: {
-    color: '#22FFF8',
+    color: '#000000',
   },
   errorText: {
     color: '#d32f2f',
@@ -607,7 +577,7 @@ const darkStyles = StyleSheet.create({
     backgroundColor: '#2a2a2a',
   },
   tabButtonText: {
-    color: '#bdc3c7',
+    color: '#FFFFFF',
   },
   errorText: {
     color: '#ff6659',

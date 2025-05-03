@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {   View,   TextInput,   Text,   Modal,   TouchableOpacity,   StyleSheet,  SafeAreaView,  ScrollView,  Animated,  Easing,  ActivityIndicator} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
@@ -8,13 +8,19 @@ import CustomToast from '../components/CustomToast';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
-const EsqueciSenha = ({ navigation }) => {
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types';
+
+
+type EsqueciSenhaNavigationProp = StackNavigationProp<RootStackParamList, 'EsqueciSenha'>;
+
+const EsqueciSenha = ({ navigation }: { navigation: EsqueciSenhaNavigationProp }) => {
   const [email, setEmail] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [toastMessage, setToastMessage] = useState(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const colorAnim = useRef(new Animated.Value(0)).current;
 
   // Animação do gradiente
@@ -97,16 +103,20 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
     );
   };
 
-  const particles = Array.from({ length: 8 }).map((_, i) => (
-    <Particle
-      key={i}
-      size={Math.random() * 5 + 3}
-      left={Math.random() * 500}
-      top={Math.random() * 900}
-      duration={Math.random() * 3000 + 2000}
-      delay={Math.random() * 2000}
-    />
-  ));
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 8 }).map((_, i) => (
+        <Particle
+          key={i}
+          size={Math.random() * 5 + 3}
+          left={Math.random() * 500}
+          top={Math.random() * 900}
+          duration={Math.random() * 3000 + 2000}
+          delay={Math.random() * 2000}
+        />
+      )),
+    []
+  );
 
   const handleResetPassword = async () => {
     if (!email.trim()) {
@@ -135,7 +145,7 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
           errorMessage = 'Muitas tentativas. Tente novamente mais tarde';
           break;
         default:
-          errorMessage = `Erro: ${error.message}`;
+          errorMessage = `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       }
       
       setModalMessage(errorMessage);

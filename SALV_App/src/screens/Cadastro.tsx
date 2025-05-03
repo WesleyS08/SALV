@@ -1,20 +1,20 @@
 import Ionicons from '@expo/vector-icons/build/Ionicons';
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { View, TextInput, StyleSheet, Text, Modal, TouchableOpacity, Image, ActivityIndicator, SafeAreaView, ScrollView, Animated, Easing } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getAuth, createUserWithEmailAndPassword, fetchSignInMethodsForEmail, deleteUser } from 'firebase/auth';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
 import { app } from '../DB/firebase';
 import supabase from '../DB/supabase';
-import { useNavigation } from '@react-navigation/native';
+import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import CustomToast from '../components/CustomToast';
+import { RootStackParamList } from '../navigation/types';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 const Cadastro = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,10 +36,10 @@ const Cadastro = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const nomeRef = useRef(null);
-  const emailRef = useRef(null);
-  const passwordRef = useRef(null);
-  const confirmPasswordRef = useRef(null);
+  const nomeRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -156,10 +156,10 @@ const Cadastro = () => {
       let errorMessage = 'Erro desconhecido ao criar conta';
       let technicalDetails = '';
 
-      if (error.code) {
-        switch (error.code) {
+      if ((error as { code?: string }).code) {
+        switch ((error as { code?: string }).code) {
           case 'auth/email-already-in-use':
-            errorMessage = error.message || 'Este email já está cadastrado';
+            errorMessage = (error as { message?: string }).message || 'Este email já está cadastrado';
             technicalDetails = 'EMAIL_EXISTS';
             break;
 
@@ -179,24 +179,28 @@ const Cadastro = () => {
             break;
 
           case 'supabase/create-failed':
-            errorMessage = error.message || 'Erro ao configurar perfil do usuário';
+            errorMessage = (error as { message?: string }).message || 'Erro ao configurar perfil do usuário';
             technicalDetails = 'SUPABASE_ERROR';
             break;
 
           default:
-            errorMessage = `Erro técnico (${error.code || 'desconhecido'}): ${error.message || 'Tente novamente'}`;
-            technicalDetails = error.code || 'UNKNOWN_ERROR';
+            if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
+              errorMessage = `Erro técnico (${(error as { code?: string }).code || 'desconhecido'}): ${(error as { message?: string }).message || 'Tente novamente'}`;
+            } else {
+              errorMessage = 'Erro técnico desconhecido. Tente novamente.';
+            }
+            technicalDetails = (error as { code?: string }).code || 'UNKNOWN_ERROR';
         }
       } else {
-        errorMessage = error.message || 'Erro inesperado ao processar seu cadastro';
+        errorMessage = (error as { message?: string }).message || 'Erro inesperado ao processar seu cadastro';
         technicalDetails = 'UNHANDLED_ERROR';
       }
 
       if (__DEV__) {
         console.error('Erro no cadastro:', {
-          message: error.message,
-          code: error.code,
-          stack: error.stack,
+          message: (error as { message?: string }).message || 'Erro desconhecido',
+          code: (error as { code?: string }).code,
+          stack: (error as Error).stack,
           technicalDetails,
           timestamp: new Date().toISOString()
         });
@@ -206,7 +210,7 @@ const Cadastro = () => {
       setErrorModalVisible(true);
 
       // Limpeza de usuário inconsistente
-      if (firebaseUser && !['auth/email-already-in-use', 'auth/invalid-email'].includes(error.code)) {
+      if (firebaseUser && typeof error === 'object' && error !== null && 'code' in error && !['auth/email-already-in-use', 'auth/invalid-email'].includes((error as { code: string }).code)) {
         try {
           await deleteUser(firebaseUser);
         } catch (deleteError) {
@@ -238,16 +242,20 @@ const Cadastro = () => {
   const termsText = `Termos e Condições do SALV...`;
   const privacyText = `Política de Privacidade do SALV...`;
 
-  const particles = Array.from({ length: 8 }).map((_, i) => (
-    <Particle
-      key={i}
-      size={Math.random() * 5 + 3}
-      left={Math.random() * 500}
-      top={Math.random() * 900}
-      duration={Math.random() * 3000 + 2000}
-      delay={Math.random() * 2000}
-    />
-  ));
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 8 }).map((_, i) => (
+        <Particle
+          key={i}
+          size={Math.random() * 5 + 3}
+          left={Math.random() * 500}
+          top={Math.random() * 900}
+          duration={Math.random() * 3000 + 2000}
+          delay={Math.random() * 2000}
+        />
+      )),
+    []
+  );
 
   return (
     <ScrollView
@@ -289,7 +297,7 @@ const Cadastro = () => {
               setErrorFields({ ...errorFields, nome: false });
             }}
             returnKeyType="next"
-            onSubmitEditing={() => emailRef.current.focus()}
+            onSubmitEditing={() => emailRef.current?.focus()}
             blurOnSubmit={false}
           />
 
@@ -306,7 +314,7 @@ const Cadastro = () => {
               setErrorFields({ ...errorFields, email: false });
             }}
             returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current.focus()}
+            onSubmitEditing={() => passwordRef.current?.focus()}
             blurOnSubmit={false}
           />
 
@@ -323,7 +331,7 @@ const Cadastro = () => {
                 setErrorFields({ ...errorFields, password: false });
               }}
               returnKeyType="next"
-              onSubmitEditing={() => confirmPasswordRef.current.focus()}
+              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
               blurOnSubmit={false}
             />
             <TouchableOpacity
@@ -405,55 +413,109 @@ const Cadastro = () => {
       >
         <View style={styles.modalContent}>
           <View style={styles.modalView}>
+
+            {/* Cabeçalho: Título + Botão de Fechar */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Termos e Condições</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
               </TouchableOpacity>
             </View>
-            <ScrollView>
-              <Text style={styles.modalText}>{termsText}</Text>
+
+            {/* Conteúdo rolável */}
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.sectionTitle}>1. Aceitação dos Termos</Text>
+              <Text style={styles.listItem}>• Ao usar o SALV, você concorda com estes Termos</Text>
+              <Text style={styles.listItem}>• Versão atualizada em: 01/01/2024</Text>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.sectionTitle}>2. Funcionalidades</Text>
+              <Text style={styles.listItem}>- Monitoramento via sensores/câmeras</Text>
+              <Text style={styles.listItem}>- Autenticação RFID/biometria</Text>
+              <Text style={styles.listItem}>- Gravação automática de eventos</Text>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.sectionTitle}>3. Responsabilidades</Text>
+              <Text style={styles.listItem}>• Manter hardware funcional (ESP32, câmeras)</Text>
+              <Text style={styles.listItem}>• Configurar corretamente MQTT/APIs</Text>
+              <Text style={styles.listItem}>• Não usar para atividades ilegais</Text>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.sectionTitle}>4. Limitações</Text>
+              <Text style={styles.listItem}>- Não cobrimos falhas de hardware</Text>
+              <Text style={styles.listItem}>- Isenção por uso indevido</Text>
+              <Text style={styles.listItem}>- Sujeito a disponibilidade de serviços em nuvem</Text>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.sectionTitle}>5. Contato</Text>
+              <Text style={styles.contactInfo}>suporte.salv@dominio.com</Text>
+              <Text style={styles.contactInfo}>+55 (11) 98888-8888 | São Paulo/SP</Text>
             </ScrollView>
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => handleDownload(termsText, 'termos_condicoes.txt')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="download" size={20} color="white" />
-              <Text style={styles.downloadButtonText}>Baixar Termos</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
+
       <Modal
-        animationType="fade"
-        transparent={true}
-        visible={privacyModalVisible}
-        onRequestClose={() => setPrivacyModalVisible(false)}
-      >
-        <View style={styles.modalContent}>
-          <View style={styles.modalView}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Política de Privacidade</Text>
-              <TouchableOpacity onPress={() => setPrivacyModalVisible(false)}>
-                <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              <Text style={styles.modalText}>{privacyText}</Text>
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={() => handleDownload(privacyText, 'politica_privacidade.txt')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="download" size={20} color="white" />
-              <Text style={styles.downloadButtonText}>Baixar Política</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+  animationType="fade"
+  transparent={true}
+  visible={privacyModalVisible}
+  onRequestClose={() => setPrivacyModalVisible(false)}
+>
+  <View style={styles.modalContent}>
+    <View style={styles.modalView}>
+      
+      {/* Cabeçalho com título e botão de fechar */}
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Política de Privacidade</Text>
+        <TouchableOpacity onPress={() => setPrivacyModalVisible(false)}>
+          <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Conteúdo com Scroll */}
+      <ScrollView style={styles.scrollArea}>
+        <Text style={styles.sectionTitle}>1. Dados Coletados</Text>
+        <Text style={styles.listItem}>• Biometria facial (processamento local)</Text>
+        <Text style={styles.listItem}>• Registros de acesso RFID</Text>
+        <Text style={styles.listItem}>• Metadados técnicos (IP, horários)</Text>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.sectionTitle}>2. Compartilhamento</Text>
+        <Text style={styles.listItem}>- Supabase: armazenamento de vídeos</Text>
+        <Text style={styles.listItem}>- Firebase: notificações push</Text>
+        <Text style={styles.listItem}>- APIs REST: integração de sistemas</Text>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.sectionTitle}>3. Segurança</Text>
+        <Text style={styles.listItem}>• Criptografia AES-256</Text>
+        <Text style={styles.listItem}>• Autenticação em duas etapas</Text>
+        <Text style={styles.listItem}>• Auditorias trimestrais</Text>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.sectionTitle}>4. Direitos</Text>
+        <Text style={styles.listItem}>- Solicitar exclusão de dados</Text>
+        <Text style={styles.listItem}>- Acessar histórico completo</Text>
+        <Text style={styles.listItem}>- Revogar permissões</Text>
+
+        <View style={styles.divider} />
+
+        <Text style={styles.sectionTitle}>5. Atualizações</Text>
+        <Text style={styles.contactInfo}>Versão vigente: 1.0.0 (Maio/2025)</Text>
+
+    
+      </ScrollView>
+    </View>
+  </View>
+</Modal>
+
 
       <Modal
         animationType="fade"
@@ -469,7 +531,6 @@ const Cadastro = () => {
                 <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalText}>{modalMessage}</Text>
           </View>
         </View>
       </Modal>
@@ -652,52 +713,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
     fontWeight: 'bold',
   },
-  modalContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  modalView: {
-    width: '85%',
-    backgroundColor: 'rgba(30,30,30,0.95)',
-    borderRadius: 16,
-    padding: 24,
-    maxHeight: '80%',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  modalText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  downloadButton: {
-    paddingVertical: 12,
-    backgroundColor: '#04C6AE',
-    borderRadius: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  downloadButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
+
   particle: {
     position: 'absolute',
     backgroundColor: 'rgba(255,255,255,0.6)',
@@ -719,6 +735,72 @@ const styles = StyleSheet.create({
   },
 
 
+
+  modalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  modalView: {
+    width: '90%',
+    backgroundColor: 'rgba(30,30,30,0.95)',
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    maxHeight: '85%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    flexDirection: 'column',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  modalBody: {
+    marginTop: 10,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#04C6AE',
+    marginTop: 15,
+    marginBottom: 8,
+    textDecorationLine: 'underline',
+  },
+  listItem: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.85)',
+    marginLeft: 12,
+    marginBottom: 5,
+    lineHeight: 20,
+  },
+  contactInfo: {
+    fontSize: 14,
+    color: '#2B5876',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(4,198,174,0.3)',
+    marginVertical: 15,
+  },
+  scrollArea: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+
 });
+
+
 
 export default Cadastro;

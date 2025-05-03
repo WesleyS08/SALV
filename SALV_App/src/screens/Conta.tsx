@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Switch, Modal, TextInput } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Switch, Modal, TextInput, Dimensions } from 'react-native';
+import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useFontSize } from '../Global/FontSizeContext';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { signOut } from 'firebase/auth';
@@ -14,6 +14,10 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../DB/supabase';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
 
 type ContaScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Conta'>;
 
@@ -24,7 +28,7 @@ interface ContaProps {
 const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28];
 
 const Conta = () => {
-    const navigation = useNavigation();
+    const navigation = useNavigation<NavigationProp<RootStackParamList>>();
     const { isDarkMode, toggleDarkMode } = useDarkMode();
     const { fontSize, setFontSize } = useFontSize();
     const [user, setUser] = useState<User | null>(null);
@@ -33,16 +37,13 @@ const Conta = () => {
     const [modalContent, setModalContent] = useState<string | null>(null);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [userData, setUserData] = useState<any>(null);
-    const defaultFontSize = 16;
-    const defaultDarkMode = false;
-    const [darkMode, setDarkMode] = useState(defaultDarkMode);
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [loadingPassword, setLoadingPassword] = useState(false);
     const togglePasswordVisibility = () => setShowPassword(!showPassword);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
 
     useEffect(() => {
@@ -61,6 +62,7 @@ const Conta = () => {
                 if (data) {
                     console.log("Dados do usuário:", data);
                     setUserData(data);
+                    setLoading(false);
                 }
             } catch (error) {
                 console.error('Erro ao buscar dados do usuário:', error);
@@ -118,7 +120,8 @@ const Conta = () => {
             case 'Política de Privacidade':
                 return 'Aqui está a nossa política de privacidade, explicando como tratamos seus dados.';
             case 'Termos e Condições':
-                return 'Aqui estão os nossos termos e condições de uso, incluindo direitos e responsabilidades.';
+                return 'Ao usar o SALV, você concorda com nossos termos: monitoramento via sensores, autenticação por RFID/biometria, gravação de eventos e responsabilidades como manter hardware funcional e uso legal do sistema.';
+
             default:
                 return 'Conteúdo não encontrado.';
         }
@@ -152,7 +155,7 @@ const Conta = () => {
             console.error("Erro não tratado no logout:", error);
         });
     };
-    const [loadingPassword, setLoadingPassword] = useState(false);
+
 
     const handleImageSelection = async () => {
         try {
@@ -263,17 +266,21 @@ const Conta = () => {
         }
     };
 
-    // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==--=-=-=-=-=-==-
     if (loading) {
         return (
-            <View style={styles.container}>
-                <Text >Carregando...</Text>
+            <View style={[styles.loadingContainer, isDarkMode && styles.loadingContainerDark]}>
+                <Text style={[styles.loadingText, isDarkMode && styles.loadingTextDark]}>
+                    Carregando...
+                </Text>
             </View>
         );
     }
 
     return (
-        <ScrollView style={[styles.container, isDarkMode && styles.containerDark]}>
+        <ScrollView
+            style={[styles.container, isDarkMode && styles.containerDark]}
+            contentContainerStyle={styles.scrollContainer}
+        >
             {toastMessage && (
                 <CustomToast
                     message={toastMessage}
@@ -282,162 +289,284 @@ const Conta = () => {
                 />
             )}
 
-            <View style={styles.header}>
-                <TouchableOpacity onPress={handleImageSelection}>
-                    <Image
-                        source={userData?.photoURL ? { uri: userData.photoURL } : require('../../assets/img/user.png')}
-                        style={styles.profileImage}
-                    />
-                </TouchableOpacity>
+            {/* Header com gradiente */}
+            <LinearGradient
+                colors={isDarkMode ? ['#0D293E', '#121212'] : ['#0D293E', '#f8f9fa']}
+                style={styles.headerGradient}
+            >
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={handleImageSelection}>
+                        <View style={styles.profileImageContainer}>
+                            <Image
+                                source={userData?.photoURL ? { uri: userData.photoURL } : require('../../assets/img/user.png')}
+                                style={styles.profileImage}
+                            />
+                            <View style={styles.editIcon}>
+                                <Ionicons name="camera" size={16} color="#FFF" />
+                            </View>
+                        </View>
+                    </TouchableOpacity>
 
-                <Text style={[styles.userName, isDarkMode && styles.userNameDark, { fontSize }]}>
-                    {userData?.Nome || user?.displayName || 'Nome do usuário'}
+                    <View style={styles.userInfo}>
+                        <Text style={[styles.userName, { color: '#FFF', fontSize: fontSize + 2 }]}>
+                            {userData?.Nome || user?.displayName || 'Usuário'}
+                        </Text>
+                        <Text style={[styles.userEmail, { color: 'rgba(255,255,255,0.8)', fontSize: fontSize - 2 }]}>
+                            {user?.email || 'email@exemplo.com'}
+                        </Text>
+                    </View>
+                </View>
+            </LinearGradient>
+
+            {/* Seção de Configurações */}
+            <View style={[styles.section, isDarkMode && styles.sectionDark]}>
+                <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize: fontSize + 1 }]}>
+                    Configurações
                 </Text>
-            </View>
 
-
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize }]}>Configurações de Conta</Text>
-                <TouchableOpacity style={styles.option}>
-                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Editar dados</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.option} onPress={() => {
-                    setModalContent('Alterar senha');
-                    setModalVisible(true);
-                }}>
-                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Alterar a senha</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={[styles.settingItem]}>
-                    <Text style={[styles.label, isDarkMode && styles.labelDark, { fontSize }]}>Modo Escuro</Text>
+                <View style={styles.settingItem}>
+                    <View style={styles.settingInfo}>
+                        <Ionicons name="moon" size={20} color={isDarkMode ? "#27c0c2" : "#666"} />
+                        <Text style={[styles.settingLabel, isDarkMode && styles.settingLabelDark, { fontSize }]}>
+                            Modo Escuro
+                        </Text>
+                    </View>
                     <Switch
                         value={isDarkMode}
                         onValueChange={toggleDarkMode}
                         trackColor={{ false: '#ccc', true: '#27c0c2' }}
                         thumbColor={isDarkMode ? '#fff' : '#f4f3f4'}
                     />
-                </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity
-                    style={styles.option}
-                    onPress={() => setFontSize(getClosestFontSize(fontSize + 2))}
+                    style={styles.settingItem}
+                    onPress={() => {
+                        setModalContent('Alterar senha');
+                        setModalVisible(true);
+                    }}
                 >
-                    <Text style={[styles.optionText, { fontSize }, isDarkMode && styles.optionTextDark, { fontSize }]}>Aumentar fonte</Text>
+                    <View style={styles.settingInfo}>
+                        <Ionicons name="lock-closed" size={20} color={isDarkMode ? "#27c0c2" : "#666"} />
+                        <Text style={[styles.settingLabel, isDarkMode && styles.settingLabelDark, { fontSize }]}>
+                            Alterar Senha
+                        </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={isDarkMode ? "#ccc" : "#666"} />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={styles.option}
-                    onPress={() => setFontSize(getClosestFontSize(fontSize - 2))}
-                >
-                    <Text style={[styles.optionText, { fontSize }, isDarkMode && styles.optionTextDark, { fontSize }]}>Diminuir fonte</Text>
-                </TouchableOpacity>
+                <View style={styles.settingItem}>
+                    <View style={styles.settingInfo}>
+                        <Ionicons name="text" size={20} color={isDarkMode ? "#27c0c2" : "#666"} />
+                        <Text style={[styles.settingLabel, isDarkMode && styles.settingLabelDark, { fontSize }]}>
+                            Tamanho da Fonte
+                        </Text>
+                    </View>
+                    <View style={styles.fontSizeControls}>
+                        <TouchableOpacity
+                            onPress={() => setFontSize(Math.max(12, fontSize - 2))}
+                            style={styles.fontSizeButton}
+                        >
+                            <Text style={[styles.fontSizeButtonText, isDarkMode && styles.fontSizeButtonTextDark]}>A-</Text>
+                        </TouchableOpacity>
+                        <Text style={[styles.fontSizeValue, isDarkMode && styles.fontSizeValueDark]}>{fontSize}</Text>
+                        <TouchableOpacity
+                            onPress={() => setFontSize(Math.min(28, fontSize + 2))}
+                            style={styles.fontSizeButton}
+                        >
+                            <Text style={[styles.fontSizeButtonText, isDarkMode && styles.fontSizeButtonTextDark]}>A+</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
 
-            <View style={styles.section}>
-                <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize }]}>Mais Opções</Text>
-                <TouchableOpacity style={styles.option} onPress={() => openModal('Sobre nós')}>
-                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Sobre nós</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.option} onPress={() => openModal('Política de Privacidade')}>
-                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Política de Privacidade</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.option} onPress={() => openModal('Termos e Condições')}>
-                    <Text style={[styles.optionText, isDarkMode && styles.optionTextDark, { fontSize }]}>Termos e Condições</Text>
-                </TouchableOpacity>
+            {/* Seção de Informações */}
+            <View style={[styles.section, isDarkMode && styles.sectionDark]}>
+                <Text style={[styles.sectionTitle, isDarkMode && styles.sectionTitleDark, { fontSize: fontSize + 1 }]}>
+                    Informações
+                </Text>
+
+                {['Sobre nós', 'Política de Privacidade', 'Termos e Condições'].map((item) => (
+                    <TouchableOpacity
+                        key={item}
+                        style={styles.settingItem}
+                        onPress={() => openModal(item)}
+                    >
+                        <View style={styles.settingInfo}>
+                            <Ionicons
+                                name={
+                                    item === 'Sobre nós' ? 'information-circle' :
+                                        item === 'Política de Privacidade' ? 'shield-checkmark' :
+                                            'document-text'
+                                }
+                                size={20}
+                                color={isDarkMode ? "#27c0c2" : "#666"}
+                            />
+                            <Text style={[styles.settingLabel, isDarkMode && styles.settingLabelDark, { fontSize }]}>
+                                {item}
+                            </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color={isDarkMode ? "#ccc" : "#666"} />
+                    </TouchableOpacity>
+                ))}
             </View>
-            <View style={styles.footer}>
-                {/* 3. Use a função wrapper no onPress */}
+
+            {/* Seção de Ações */}
+            <View style={[styles.section, isDarkMode && styles.sectionDark]}>
                 <TouchableOpacity
+                    style={[styles.actionButton, styles.logoutButton]}
                     onPress={handleSignOutPress}
-                    style={styles.logoutButton}
                 >
-                    <Text style={[
-                        styles.logoutText,
-                        isDarkMode && styles.logoutTextDark,
-                        { fontSize }
-                    ]}>
-                        Sair da Conta
-                    </Text>
+                    <Ionicons name="log-out" size={20} color="#FFF" />
+                    <Text style={[styles.actionButtonText, { fontSize }]}>Sair da Conta</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.deleteButton}>
-                    <Text style={[
-                        styles.deleteText,
-                        isDarkMode && styles.deleteTextDark,
-                        { fontSize }
-                    ]}>
-                        Deletar Conta
-                    </Text>
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.deleteButton]}
+                    onPress={() => console.log('Deletar conta')}
+                >
+                    <Ionicons name="trash" size={20} color="#FFF" />
+                    <Text style={[styles.actionButtonText, { fontSize }]}>Deletar Conta</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Modal */}
+            {/* Modal para Alterar Senha */}
             <Modal
-                visible={modalVisible}
+                visible={modalVisible && modalContent === 'Alterar senha'}
                 animationType="slide"
                 transparent={true}
                 onRequestClose={() => setModalVisible(false)}
             >
-                <View style={[styles.modalContainer, isDarkMode && styles.modalContainerDark]}>
+                <View style={[styles.modalOverlay, isDarkMode && styles.modalOverlayDark]}>
                     <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
-                        <Text style={[styles.modalText, { fontSize }, isDarkMode && styles.modalTextDark]}>
-                            {getModalContent(modalContent)}
+                        <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark, { fontSize: fontSize + 2 }]}>
+                            Alterar Senha
                         </Text>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.inputLabel, isDarkMode && styles.inputLabelDark, { fontSize: fontSize - 1 }]}>
+                                Senha Atual
+                            </Text>
+                            <TextInput
+                                style={[styles.input, isDarkMode && styles.inputDark]}
+                                placeholder="Digite sua senha atual"
+                                placeholderTextColor={isDarkMode ? "#888" : "#999"}
+                                value={currentPassword}
+                                onChangeText={setCurrentPassword}
+                                secureTextEntry={!showPassword}
+                                autoCapitalize="none"
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.inputLabel, isDarkMode && styles.inputLabelDark, { fontSize: fontSize - 1 }]}>
+                                Nova Senha
+                            </Text>
+                            <TextInput
+                                style={[styles.input, isDarkMode && styles.inputDark]}
+                                placeholder="Digite a nova senha"
+                                placeholderTextColor={isDarkMode ? "#888" : "#999"}
+                                value={newPassword}
+                                onChangeText={setNewPassword}
+                                secureTextEntry={!showPassword}
+                                autoCapitalize="none"
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <Text style={[styles.inputLabel, isDarkMode && styles.inputLabelDark, { fontSize: fontSize - 1 }]}>
+                                Confirmar Nova Senha
+                            </Text>
+                            <TextInput
+                                style={[styles.input, isDarkMode && styles.inputDark]}
+                                placeholder="Confirme a nova senha"
+                                placeholderTextColor={isDarkMode ? "#888" : "#999"}
+                                value={confirmNewPassword}
+                                onChangeText={setConfirmNewPassword}
+                                secureTextEntry={!showPassword}
+                                autoCapitalize="none"
+                            />
+                        </View>
+
+                        {passwordError && (
+                            <Text style={[styles.errorText, { fontSize: fontSize - 1 }]}>
+                                {passwordError}
+                            </Text>
+                        )}
+
                         <TouchableOpacity
-                            style={styles.closeModalButton}
-                            onPress={() => setModalVisible(false)}
+                            style={styles.passwordVisibilityButton}
+                            onPress={togglePasswordVisibility}
                         >
-                            <Text style={[styles.closeModalText, isDarkMode && styles.closeModalTextDark]}>Fechar</Text>
+                            <Ionicons
+                                name={showPassword ? "eye-off" : "eye"}
+                                size={18}
+                                color={isDarkMode ? "#27c0c2" : "#666"}
+                            />
+                            <Text style={[styles.passwordVisibilityText, isDarkMode && styles.passwordVisibilityTextDark, { fontSize: fontSize - 1 }]}>
+                                {showPassword ? 'Ocultar senhas' : 'Mostrar senhas'}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.modalButton, loadingPassword && styles.modalButtonDisabled]}
+                            onPress={handleChangePassword}
+                            disabled={loadingPassword}
+                        >
+                            {loadingPassword ? (
+                                <Text style={styles.modalButtonText}>Processando...</Text>
+                            ) : (
+                                <Text style={styles.modalButtonText}>Alterar Senha</Text>
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.modalCloseButton}
+                            onPress={() => {
+                                setModalVisible(false);
+                                setPasswordError('');
+                                setCurrentPassword('');
+                                setNewPassword('');
+                                setConfirmNewPassword('');
+                            }}
+                        >
+                            <Text style={[styles.modalCloseButtonText, isDarkMode && styles.modalCloseButtonTextDark]}>
+                                Cancelar
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
-            <Modal visible={modalVisible} animationType="slide" transparent={true}>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        {modalContent === 'Alterar senha' ? (
-                            <View style={styles.modalBody}>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Senha Atual"
-                                    value={currentPassword}
-                                    onChangeText={setCurrentPassword}
-                                    secureTextEntry={!showPassword}
-                                />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Nova Senha"
-                                    value={newPassword}
-                                    onChangeText={setNewPassword}
-                                    secureTextEntry={!showPassword}
-                                />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Confirmar Nova Senha"
-                                    value={confirmNewPassword}
-                                    onChangeText={setConfirmNewPassword}
-                                    secureTextEntry={!showPassword}
-                                />
-                                {passwordError && <Text style={styles.passwordError}>{passwordError}</Text>}
-                                <TouchableOpacity onPress={handleChangePassword} style={styles.modalButton}>
-                                    <Text style={styles.modalButtonText}>Alterar Senha</Text>
-                                </TouchableOpacity>
 
-                                <TouchableOpacity onPress={togglePasswordVisibility} style={styles.showPasswordButton}>
-                                    <Text style={styles.showPasswordText}>
-                                        {showPassword ? 'Ocultar Senhas' : 'Mostrar Senhas'}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-                        ) : (
-                            <Text>{modalContent}</Text>
-                        )}
+            <Modal
+                visible={modalVisible && modalContent !== 'Alterar senha'}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={[styles.modalOverlay, isDarkMode && styles.modalOverlayDark]}>
+                    <View style={[styles.modalContent, isDarkMode && styles.modalContentDark]}>
+                        <Text style={[styles.modalTitle, isDarkMode && styles.modalTitleDark, { fontSize: fontSize + 2 }]}>
+                            {modalContent}
+                        </Text>
+
+                        <ScrollView
+                            style={styles.modalScroll}
+                            contentContainerStyle={{ paddingBottom: 20 }} 
+                            showsVerticalScrollIndicator={true}
+                        >
+                            <Text style={[styles.modalText, isDarkMode && styles.modalTextDark, { fontSize }]}>
+                                {getModalContent(modalContent)}
+                            </Text>
+                        </ScrollView>
 
                         <TouchableOpacity
+                            style={styles.modalCloseButton}
                             onPress={() => setModalVisible(false)}
-                            style={styles.closeButton}
                         >
-                            <Text style={styles.closeButtonText}>Fechar</Text>
+                            <Text style={[styles.modalCloseButtonText, isDarkMode && styles.modalCloseButtonTextDark]}>
+                                Fechar
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -449,193 +578,279 @@ const Conta = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#f8f9fa',
     },
     containerDark: {
-        backgroundColor: '#1f1f1f',
+        backgroundColor: '#121212',
+    },
+    scrollContainer: {
+        paddingBottom: 30,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa',
+    },
+    loadingContainerDark: {
+        backgroundColor: '#121212',
+    },
+    loadingText: {
+        fontSize: 18,
+        color: '#333',
+    },
+    loadingTextDark: {
+        color: '#fff',
+    },
+    headerGradient: {
+        paddingTop: 50,
+        paddingBottom: 30,
+        paddingHorizontal: 20,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
-        marginLeft: '5%',
+    },
+    profileImageContainer: {
+        position: 'relative',
     },
     profileImage: {
         width: 80,
         height: 80,
         borderRadius: 40,
-        marginTop: 10,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
+    }, 
+    editIcon: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        backgroundColor: '#27c0c2',
+        borderRadius: 15,
+        width: 30,
+        height: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    userInfo: {
+        flex: 1,
+        marginLeft: 20,
     },
     userName: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginTop: 10,
-        marginLeft: '4%',
+        fontWeight: '600',
+        marginBottom: 5,
     },
-    userNameDark: {
-        color: '#fff',
+    userEmail: {
+        opacity: 0.8,
     },
     section: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
+        marginTop: 20,
+        marginHorizontal: 20,
+        padding: 15,
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    sectionDark: {
+        backgroundColor: '#1e1e1e',
+        shadowColor: '#000',
     },
     sectionTitle: {
-        fontSize: 19,
         fontWeight: 'bold',
-        color: '#888',
-        marginBottom: 10,
+        marginBottom: 15,
+        color: '#666',
     },
     sectionTitleDark: {
         color: '#ccc',
     },
-    option: {
+    settingItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         paddingVertical: 12,
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
     },
-    optionText: {
-        fontSize: 16,
+    settingItemDark: {
+        borderBottomColor: '#333',
     },
-    optionTextDark: {
+    settingInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    settingLabel: {
+        marginLeft: 10,
+        color: '#333',
+    },
+    settingLabelDark: {
         color: '#fff',
     },
-    footer: {
-        paddingHorizontal: 20,
-        marginTop: 20,
+    fontSizeControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    fontSizeButton: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+        backgroundColor: '#eee',
+    },
+    fontSizeButtonDark: {
+        backgroundColor: '#333',
+    },
+    fontSizeButtonText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    fontSizeButtonTextDark: {
+        color: '#fff',
+    },
+    fontSizeValue: {
+        marginHorizontal: 10,
+        fontSize: 16,
+        color: '#333',
+    },
+    fontSizeValueDark: {
+        color: '#fff',
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 15,
+        borderRadius: 8,
+        marginBottom: 10,
     },
     logoutButton: {
-        paddingVertical: 15,
-    },
-    logoutText: {
-        fontSize: 16,
-        color: '#d9534f',
-    },
-    logoutTextDark: {
-        color: '#f8d7da',
+        backgroundColor: '#d9534f',
     },
     deleteButton: {
-        paddingVertical: 15,
+        backgroundColor: '#ff6b6b',
     },
-    deleteText: {
-        fontSize: 16,
-        color: '#ff0000',
-        fontWeight: 'bold',
-    },
-    deleteTextDark: {
-        color: '#ff4d4d',
-    },
-    settingItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-    },
-    label: {
-        fontSize: 16,
-    },
-    labelDark: {
+    actionButtonText: {
         color: '#fff',
+        marginLeft: 10,
+        fontWeight: '600',
     },
     modalOverlay: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     modalOverlayDark: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0,0,0,0.8)',
     },
     modalContent: {
-        width: 300,
+        width: width - 40,
+        maxHeight: '80%',
         padding: 20,
+        borderRadius: 12,
         backgroundColor: '#fff',
-        borderRadius: 10,
-        alignItems: 'center',
     },
     modalContentDark: {
-        backgroundColor: '#333',
+        backgroundColor: '#1e1e1e',
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 20,
+        color: '#333',
+        textAlign: 'center',
+    },
+    modalTitleDark: {
+        color: '#fff',
+    },
+    modalScroll: {
+        maxHeight: '70%',
+        marginBottom: 20,
     },
     modalText: {
-        fontSize: 18,
-        color: '#000',
-        marginBottom: 20,
+        fontSize: 16,
+        lineHeight: 24,
+        color: '#333',
     },
     modalTextDark: {
         color: '#fff',
     },
-    closeButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        backgroundColor: '#27c0c2',
-        borderRadius: 5,
+    inputContainer: {
+        marginBottom: 15,
     },
-    closeButtonText: {
-        color: '#fff',
-        fontSize: 16,
+    inputLabel: {
+        marginBottom: 5,
+        color: '#666',
     },
-    closeButtonTextDark: {
-        color: '#fff',
-    },
-    modalBody: {
-        marginBottom: 20,
+    inputLabelDark: {
+        color: '#ccc',
     },
     input: {
-        height: 40,
-        borderColor: '#ccc',
+        height: 50,
         borderWidth: 1,
-        borderRadius: 5,
-        marginBottom: 10,
-        paddingLeft: 10,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        fontSize: 16,
         backgroundColor: '#f9f9f9',
     },
-    passwordError: {
-        color: 'red',
-        marginBottom: 10,
+    inputDark: {
+        borderColor: '#333',
+        backgroundColor: '#2a2a2a',
+        color: '#fff',
+    },
+    errorText: {
+        color: '#d9534f',
+        marginBottom: 15,
+        textAlign: 'center',
+    },
+    passwordVisibilityButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+    },
+    passwordVisibilityText: {
+        marginLeft: 5,
+        color: '#666',
+    },
+    passwordVisibilityTextDark: {
+        color: '#ccc',
     },
     modalButton: {
-        backgroundColor: '#4CAF50',
-        padding: 10,
-        borderRadius: 5,
+        backgroundColor: '#27c0c2',
+        padding: 15,
+        borderRadius: 8,
         alignItems: 'center',
+        marginBottom: 10,
+    },
+    modalButtonDisabled: {
+        opacity: 0.7,
     },
     modalButtonText: {
         color: '#fff',
+        fontWeight: '600',
         fontSize: 16,
     },
-    showPasswordButton: {
-        marginTop: 10,
-        alignItems: 'center',
-    },
-    showPasswordText: {
-        color: '#007BFF',
-    },
-    closeModalText: {
-        color: '#333',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    closeModalTextDark: {
-        color: '#fff',
-    },
-    closeModalButton: {
+    modalCloseButton: {
         padding: 10,
-        marginTop: 15,
-        backgroundColor: '#27c0c2',
-        borderRadius: 5,
     },
-    modalContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.5)',
+    modalCloseButtonText: {
+        color: '#666',
+        textAlign: 'center',
+        fontSize: 16,
     },
-    modalContainerDark: {
-        backgroundColor: 'rgba(0,0,0,0.8)',
+    modalCloseButtonTextDark: {
+        color: '#ccc',
     },
-
 });
 
 export default Conta;
+
+function setIsAuthenticated(arg0: boolean) {
+    throw new Error('Function not implemented.');
+}

@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { Text, StyleSheet, View, Image, TouchableOpacity, SafeAreaView, ScrollView, Animated, Easing } from "react-native";
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
@@ -176,9 +178,8 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
     />
   );
 };
-
 export default function Index() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'BoasVindas'>>();
   const colorAnim = new Animated.Value(0);
 
   useEffect(() => {
@@ -260,13 +261,13 @@ export default function Index() {
         </ScrollView>
         
         <View style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
-          <TouchableOpacity 
+            <TouchableOpacity 
             style={styles.buttonContainer} 
-            onPress={() => navigation.navigate('Autenticacao')}
+            onPress={() => navigation.navigate('Autenticacao' as never)}
             activeOpacity={0.8}
-          >
+            >
             <Text style={styles.buttonText}>Próximo</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
         </View>
       </SafeAreaView>
     </View>

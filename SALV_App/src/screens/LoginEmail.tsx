@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, TextInput, Text, Modal, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, Animated, Easing, ActivityIndicator, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
@@ -109,25 +109,21 @@ const Login: React.FC<LoginProps> = ({ navigation }) => {
     );
   };
 
-  const particles = Array.from({ length: 8 }).map((_, i) => (
-    <Particle
-      key={i}
-      size={Math.random() * 5 + 3}
-      left={Math.random() * 500}
-      top={Math.random() * 900}
-      duration={Math.random() * 3000 + 2000}
-      delay={Math.random() * 2000}
-    />
-  ));
 
-  // Função para criptografar dados
-  const encryptData = async (data: string): Promise<string> => {
-    const digest = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      data + new Date().getTime().toString()
-    );
-    return digest;
-  };
+const particles = useMemo(
+  () =>
+    Array.from({ length: 8 }).map((_, i) => (
+      <Particle
+        key={i}
+        size={Math.random() * 5 + 3}
+        left={Math.random() * 500}
+        top={Math.random() * 900}
+        duration={Math.random() * 3000 + 2000}
+        delay={Math.random() * 2000}
+      />
+    )),
+  [] 
+);
 
   // Validação de email
   const validateEmail = (email: string) => {

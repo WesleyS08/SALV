@@ -2,17 +2,32 @@
 import { useEffect, useState } from 'react';
 import supabase from '../DB/supabase';
 import { User } from 'firebase/auth';
-import * as Notifications from 'expo-notifications';
 
 export function useUserData(user: User | null) {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [isLiveActive, setIsLiveActive] = useState(false);
-    const [ngrokLink, setNgrokLink] = useState<string | null>(null);
-    const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+    const [ngrokData, setNgrokData] = useState<{
+        url: string | null;
+        updated_at: string | null;
+    }>({
+        url: null,
+        updated_at: null
+    });
     const [updatedAtFormatted, setUpdatedAtFormatted] = useState<string | null>(null);
-    const [filmagens, setFilmagens] = useState<any[]>([]); // ✅ novo estado para filmagens
+    const [filmagens, setFilmagens] = useState<any[]>([]);
+
+    const formatDateTime = (isoString: string): string => {
+        const date = new Date(isoString);
+        return date.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -22,6 +37,9 @@ export function useUserData(user: User | null) {
             }
 
             try {
+                setLoading(true);
+                
+                // Buscar dados do usuário
                 const { data: userData, error: userError } = await supabase
                     .from('Tb_Usuarios')
                     .select('*')
@@ -31,14 +49,14 @@ export function useUserData(user: User | null) {
                 if (userError) throw userError;
                 setUserData(userData);
 
-                // ✅ Buscar filmagens relacionadas ao usuário
+                // Buscar filmagens do usuário
                 const { data: filmagensData, error: filmagensError } = await supabase
                     .from('filmagens')
-                    .select('id, inicio, fim, duracao, url_video, data, hora_inicio, hora_fim, evento, dispositivo, enviado_com_sucesso, tamanho_arquivo_mb')
+                    .select('*')
                     .order('data', { ascending: false });
 
                 if (filmagensError) throw filmagensError;
-                setFilmagens(filmagensData);
+                setFilmagens(filmagensData || []);
             } catch (error: any) {
                 console.error('Erro ao buscar dados:', error.message);
                 setErrorMsg('Erro ao carregar dados');
@@ -57,76 +75,52 @@ export function useUserData(user: User | null) {
 
         const checkLiveStatus = async () => {
             try {
-                const { data: ngrokData, error: ngrokError } = await supabase
+                const { data, error } = await supabase
                     .from('ngrok_links')
-                    .select('AoVivo, updated_at')
+                    .select('AoVivo, updated_at, url')
                     .single();
 
-                if (ngrokError) throw ngrokError;
+                if (error) throw error;
 
-                const isCurrentlyLive = ngrokData?.AoVivo === true;
+                const isCurrentlyLive = data?.AoVivo === true;
+                const currentUrl = data?.url || null;
+                const currentUpdatedAt = data?.updated_at || null;
 
-                if (isCurrentlyLive && !isLiveActive) {
-                    await sendNotification();
+                // Atualizar estados apenas se houver mudanças
+                if (isCurrentlyLive !== isLiveActive) {
+                    setIsLiveActive(isCurrentlyLive);
+                    
+                
                 }
 
-                setIsLiveActive(isCurrentlyLive);
-
-                const rawDate = ngrokData?.updated_at || null;
-                setUpdatedAt(rawDate);
-
-                if (rawDate) {
-                    const formatted = formatDateTime(rawDate);
-                    setUpdatedAtFormatted(formatted);
-                } else {
-                    setUpdatedAtFormatted(null);
+                if (currentUrl !== ngrokData.url || currentUpdatedAt !== ngrokData.updated_at) {
+                    setNgrokData({
+                        url: currentUrl,
+                        updated_at: currentUpdatedAt
+                    });
+                    
+                    setUpdatedAtFormatted(currentUpdatedAt ? formatDateTime(currentUpdatedAt) : null);
                 }
             } catch (error: any) {
                 console.error('Erro ao checar status AoVivo:', error.message);
             }
         };
 
-        interval = setInterval(checkLiveStatus, 600000); // 10 minutos
+        // Verificar imediatamente e depois a cada 10 minutos
+        checkLiveStatus();
+        interval = setInterval(checkLiveStatus, 600000);
 
         return () => clearInterval(interval);
-    }, [user?.uid, isLiveActive]);
-
-    const sendNotification = async () => {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-            console.log('Permissão de notificação negada!');
-            return;
-        }
-
-        await Notifications.scheduleNotificationAsync({
-            content: {
-                title: '🚨 Transmissão ao vivo!',
-                body: 'Clique aqui para acompanhar agora.',
-                sound: 'default',
-            },
-            trigger: null,
-        });
-    };
-
-    const formatDateTime = (isoString: string): string => {
-        const date = new Date(isoString);
-        return date.toLocaleString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    };
+    }, [user?.uid, isLiveActive, ngrokData.url, ngrokData.updated_at]);
 
     return { 
         userData, 
         loading, 
         errorMsg,
         isLiveActive,
-        updatedAt,
+        updatedAt: ngrokData.updated_at,
         updatedAtFormatted,
-        ngrokLink,
+        ngrokLink: ngrokData.url, 
         filmagens
     };
 }

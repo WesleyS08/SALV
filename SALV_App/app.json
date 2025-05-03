@@ -7,12 +7,14 @@
     "icon": "./assets/img/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false, 
     "ios": {
-      "supportsTablet": true
-    }, 
+      "supportsTablet": true,
+      "usesBackgroundFetch": true  
+    },
     "androidStatusBar": {
-      "visible": false
+      "visible": false,
+      "backgroundColor": "#0D283D"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,34 +22,49 @@
         "backgroundColor": "#0D283D"
       },
       "permissions": [
-        "NOTIFICATIONS"
-      ]
-  },
+        "NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE"  
+      ],
+      "package": "com.wesleydavi.salv"
+    },
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/img/favicon.png"
-    },
-    "splash": {
-      "image": "./assets/img/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0D283D"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image":"./assets/img/splash-icon.png",
+          "image": "./assets/img/splash.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#0D283D"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-background-fetch",
+        {
+          "minimumInterval": 15,
+          "stopOnTerminate": false,
+          "startOnBoot": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "33444346-c316-4a52-aa24-63a2f5678984"
+      }
     }
   }
 }

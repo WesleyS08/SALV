@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, Linking, TouchableOpacity, ScrollView, Dimensions, Alert, AppState } from 'react-native';
 import { useUserData } from '../contexts/useUserData';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../Global/DarkModeContext';
@@ -8,25 +8,140 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFontSize } from '../Global/FontSizeContext';
+import * as Notifications from 'expo-notifications';
+import { LIVE_STATUS_TASK } from '../utils/liveStatusTask';
+import * as BackgroundFetch from 'expo-background-fetch';
+import * as TaskManager from 'expo-task-manager';
+import supabase from '../DB/supabase';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/types'; 
 
 const { width } = Dimensions.get('window');
 
-const AoVivo = ({ navigation }) => {
+
+const extractVideoId = (url: string) => {
+    // Regex para capturar o ID de vídeo
+    const videoRegex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+|(?:v|e(?:mbed)?)\/([^\/\n\s]+)|(?:watch\?v=|v%3D)([^\/\n\s]+))|youtu\.be\/([^\/\n\s]+))/;
+    
+    // Tentando capturar o ID de vídeo
+    const match = url.match(videoRegex);
+    if (match) {
+        return match[1] || match[2] || match[3] || match[4]; // ID do vídeo
+    }
+
+    return null; 
+};
+
+type AoVivoProps = {
+    navigation: StackNavigationProp<RootStackParamList, 'AoVivo'>;
+};
+
+const AoVivo = ({ navigation }: AoVivoProps) => {
     const { isDarkMode } = useDarkMode();
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
     const { user } = useAuth();
     const { userData, isLiveActive, ngrokLink, updatedAtFormatted } = useUserData(user);
     const { fontSize, setFontSize } = useFontSize();
-    
+    const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
     const playerRef = useRef<any>(null);
     const [playerError, setPlayerError] = useState(false);
     const [playerReady, setPlayerReady] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const videoId = ngrokLink ? extractVideoId(ngrokLink) : null;
+
+
+
+    const toggleBackgroundTask = async () => {
+        try {
+            // Obter status atual
+            const tasks = await TaskManager.getRegisteredTasksAsync();
+            const isRegistered = tasks.some(t => t.taskName === LIVE_STATUS_TASK);
+
+            if (isRegistered) {
+                // Desativar monitoramento
+                await BackgroundFetch.unregisterTaskAsync(LIVE_STATUS_TASK);
+                setIsNotificationEnabled(false);
+                console.log('Monitoramento desativado');
+                Alert.alert('Monitoramento', 'Notificações desativadas com sucesso');
+            } else {
+                // Ativar monitoramento
+                const { status } = await Notifications.requestPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permissão necessária', 'Por favor, ative as notificações');
+                    return;
+                }
+
+                await BackgroundFetch.registerTaskAsync(LIVE_STATUS_TASK, {
+                    minimumInterval: 15 * 60, // 15 minutos (mínimo no Android)
+                    stopOnTerminate: false,
+                    startOnBoot: true,
+                });
+
+                // Execução manual para teste
+                try {
+                    const { data } = await supabase
+                        .from('ngrok_links')
+                        .select('AoVivo')
+                        .limit(1);
+
+                    if (data?.[0]?.AoVivo) {
+                        await Notifications.scheduleNotificationAsync({
+                            content: {
+                                title: 'Teste de Notificação',
+                                body: 'O monitoramento está funcionando corretamente!',
+                            },
+                            trigger: null,
+                        });
+                    }
+                } catch (testError) {
+                    console.warn('Erro no teste:', testError);
+                }
+
+                setIsNotificationEnabled(true);
+                Alert.alert('Monitoramento', 'Notificações ativadas com sucesso');
+            }
+        } catch (error) {
+            console.error('Erro ao alternar:', error);
+            Alert.alert(
+                'Erro',
+                (error instanceof Error ? error.message : 'Erro desconhecido') || 'Não foi possível alternar o monitoramento',
+                [
+                    { text: 'Configurações', onPress: () => Linking.openSettings() },
+                    { text: 'OK' }
+                ]
+            );
+        }
+    };
+
+    // Verificação inicial melhorada
+    useEffect(() => {
+        const checkTaskStatus = async () => {
+            try {
+                const registeredTasks = await TaskManager.getRegisteredTasksAsync();
+                const isRegistered = registeredTasks.some(task => task.taskName === LIVE_STATUS_TASK);
+
+                // Verificar permissões também
+                const { status } = await Notifications.getPermissionsAsync();
+
+                setIsNotificationEnabled(isRegistered && status === 'granted');
+            } catch (error) {
+                console.error('Erro ao verificar status:', error);
+            }
+        };
+
+        const subscription = AppState.addEventListener('change', state => {
+            if (state === 'active') checkTaskStatus();
+        });
+
+        checkTaskStatus();
+        return () => subscription.remove();
+    }, []);
+
 
     // Configura a orientação da tela
     useEffect(() => {
         ScreenOrientation.unlockAsync();
-        
+
         return () => {
             ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
         };
@@ -69,7 +184,7 @@ const AoVivo = ({ navigation }) => {
     };
 
     return (
-        <ScrollView 
+        <ScrollView
             style={[styles.container, themeStyles.container]}
             contentContainerStyle={styles.scrollContainer}
         >
@@ -82,7 +197,7 @@ const AoVivo = ({ navigation }) => {
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color="#FFF" />
                     </TouchableOpacity>
-                    
+
                     <View style={styles.profileContainer}>
                         <Image
                             source={
@@ -93,10 +208,10 @@ const AoVivo = ({ navigation }) => {
                             style={styles.profileImage}
                         />
                         <View style={styles.userInfo}>
-                            <Text style={[styles.userName,  { fontSize }]} numberOfLines={1}>
+                            <Text style={[styles.userName, { fontSize }]} numberOfLines={1}>
                                 {userData?.Nome || user?.displayName || 'Usuário'}
                             </Text>
-                            <Text style={[styles.userEmail , { fontSize }]} numberOfLines={1}>
+                            <Text style={[styles.userEmail, { fontSize }]} numberOfLines={1}>
                                 {user?.email || 'email@exemplo.com'}
                             </Text>
                         </View>
@@ -107,7 +222,7 @@ const AoVivo = ({ navigation }) => {
             {/* Área principal de conteúdo */}
             <View style={styles.content}>
                 <Text style={[styles.title, themeStyles.text, { fontSize }]}>TRANSMISSÃO AO VIVO</Text>
-                
+
                 {isLiveActive ? (
                     !playerError ? (
                         <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
@@ -115,19 +230,22 @@ const AoVivo = ({ navigation }) => {
                                 ref={playerRef}
                                 height={isFullscreen ? width : 220}
                                 play={true}
-                                videoId="wACTDUyZEws"
+                                videoId={videoId} 
+                                onError={e => {
+                                    console.error('Erro no player:', e);
+                                    setPlayerError(true);
+                                }}
                                 webViewStyle={styles.videoPlayer}
-                                onError={handlePlayerError}
                                 onReady={handlePlayerReady}
                             />
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.fullscreenButton}
                                 onPress={toggleFullscreen}
                             >
-                                <Ionicons 
-                                    name={isFullscreen ? "contract" : "expand"} 
-                                    size={24} 
-                                    color="#FFF" 
+                                <Ionicons
+                                    name={isFullscreen ? "contract" : "expand"}
+                                    size={24}
+                                    color="#FFF"
                                 />
                             </TouchableOpacity>
                         </View>
@@ -137,7 +255,7 @@ const AoVivo = ({ navigation }) => {
                             <Text style={[styles.placeholderText, themeStyles.text, { fontSize }]}>
                                 Erro ao carregar a transmissão
                             </Text>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.retryButton}
                                 onPress={handleRetry}
                             >
@@ -163,32 +281,44 @@ const AoVivo = ({ navigation }) => {
                             {isLiveActive ? "Ao vivo agora" : "Offline"}
                         </Text>
                     </View>
-                    
+
                     <View style={styles.infoRow}>
                         <Ionicons name="calendar" size={20} color="#2196F3" />
                         <Text style={[styles.infoLabel, themeStyles.secondaryText, { fontSize }]}>Última transmissão:</Text>
-                        <Text style={[styles.infoValue, themeStyles.text, { fontSize }]}> {updatedAtFormatted  ?? 'Indisponível'}</Text>
+                        <Text style={[styles.infoValue, themeStyles.text, { fontSize }]}> {updatedAtFormatted ?? 'Indisponível'}</Text>
                     </View>
-                    
+
                 </View>
 
                 {/* Ações */}
                 <View style={styles.actionsContainer}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={[styles.actionButton, styles.primaryButton]}
                         onPress={handlePress}
                     >
                         <Ionicons name="play" size={20} color="#FFF" />
                         <Text style={styles.actionButtonText}>Assistir</Text>
                     </TouchableOpacity>
-                    
+                    <TouchableOpacity
+                        style={[styles.actionButton, styles.secondaryButton]}
+                        onPress={toggleBackgroundTask}
+                    >
+                        <Ionicons
+                            name={isNotificationEnabled ? "notifications-off" : "notifications"}
+                            size={20}
+                            color="#0D293E"
+                        />
+                        <Text style={[styles.actionButtonText, { color: '#0D293E' }]}>
+                            {isNotificationEnabled ? 'Desativar Notificações' : 'Ativar Notificações'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Descrição */}
                 <View style={[styles.descriptionCard, themeStyles.card]}>
                     <Text style={[styles.descriptionTitle, themeStyles.text, { fontSize }]}>Sobre a transmissão</Text>
                     <Text style={[styles.descriptionText, themeStyles.secondaryText, { fontSize }]}>
-                        Acompanhe nossa transmissão ao vivo com os melhores conteúdos. 
+                        Acompanhe nossa transmissão ao vivo com os melhores conteúdos.
                         Quando estivermos no ar, você será notificado automaticamente.
                     </Text>
                 </View>

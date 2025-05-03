@@ -1,10 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image } from 'react-native';
-import { Video } from 'expo-av'; // Importando o componente Video do expo-av
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, Dimensions } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { useUserData } from '../contexts/useUserData';
 import { useAuth } from '../contexts/AuthContext';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { useFontSize } from '../Global/FontSizeContext';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
+
+type Filmagem = {
+    id: number;
+    data: string;
+    hora_inicio: string;
+    hora_fim: string;
+    evento: string;
+    url_video?: string;
+};
 
 const Gravacoes = () => {
     const { isDarkMode } = useDarkMode();
@@ -13,78 +26,124 @@ const Gravacoes = () => {
     const { userData, filmagens } = useUserData(user);
     const { fontSize, setFontSize } = useFontSize();
 
-    const abrirLink = (url) => {
-        // Função para abrir o link do vídeo
-        console.log('Abrir link:', url);
-    };
+    const renderItem = ({ item }: { item: Filmagem }) => (
+        <View style={[styles.itemContainer, themeStyles.itemContainer]}>
+            <View style={styles.itemHeader}>
+                <View style={styles.dateTimeContainer}>
+                    <Ionicons name="calendar" size={16} color="#4CAF50" />
+                    <Text style={[styles.dateText, themeStyles.text, { fontSize: fontSize - 2 }]}>
+                        {item.data}
+                    </Text>
+                </View>
+                <View style={styles.dateTimeContainer}>
+                    <Ionicons name="time" size={16} color="#2196F3" />
+                    <Text style={[styles.timeText, themeStyles.text, { fontSize: fontSize - 2 }]}>
+                        {item.hora_inicio} - {item.hora_fim}
+                    </Text>
+                </View>
+            </View>
+            
+            <Text style={[styles.eventText, themeStyles.text, { fontSize }]}>
+                {item.evento}
+            </Text>
+            
+            <View style={styles.videoContainer}>
+                {item.url_video ? (
+                    <>
+                        <Video
+                            source={{ uri: item.url_video }}
+                            style={styles.videoPlayer}
+                            useNativeControls
+                            resizeMode={ResizeMode.COVER}
+                            shouldPlay={false}
+                        />
+                        <TouchableOpacity 
+                            style={styles.downloadButton}
+                            onPress={() => console.log('Download:', item.url_video)}
+                        >
+                            <Ionicons name="download" size={20} color="#FFF" />
+                            <Text style={styles.downloadText}>Download</Text>
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <View style={styles.noVideoContainer}>
+                        <Ionicons name="videocam-off" size={40} color="#888" />
+                        <Text style={[styles.noVideoText, themeStyles.text]}>
+                            Vídeo não disponível
+                        </Text>
+                    </View>
+                )}
+            </View>
+            
+            <View style={styles.itemFooter}>
+                <Text style={[styles.durationText, themeStyles.secondaryText]}>
+                    <Ionicons name="timer" size={14} /> {item.duracao}
+                </Text>
+                <TouchableOpacity style={styles.shareButton}>
+                    <Ionicons name="share-social" size={18} color="#0D293E" />
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
 
     return (
         <View style={[styles.container, themeStyles.container]}>
-            <View style={styles.header}>
-                <View style={styles.profileContainer}>
-                    <Image
-                        source={
-                            userData?.photoURL
-                                ? { uri: userData.photoURL }
-                                : require('../../assets/img/user.png')
-                        }
-                        style={styles.profileImage}
-                    />
-                    <View style={styles.userInfo}>
-                        <Text style={[styles.userName, themeStyles.text, { fontSize }]} numberOfLines={1}>
-                            {userData?.Nome || user?.displayName || 'Usuário'}
-                        </Text>
-                        <Text style={[styles.userEmail, themeStyles.secondaryText, { fontSize }]} numberOfLines={1}>
-                            {user?.email || 'email@exemplo.com'}
-                        </Text>
+            {/* Header com gradiente */}
+            <LinearGradient
+                colors={isDarkMode ? ['#0D293E', '#121212'] : ['#0D293E', '#f8f9fa']}
+                style={styles.headerGradient}
+            >
+                <View style={styles.header}>
+                    <View style={styles.profileContainer}>
+                        <Image
+                            source={
+                                userData?.photoURL
+                                    ? { uri: userData.photoURL }
+                                    : require('../../assets/img/user.png')
+                            }
+                            style={styles.profileImage}
+                        />
+                        <View style={styles.userInfo}>
+                            <Text style={[styles.userName, { color: '#FFF', fontSize }]} numberOfLines={1}>
+                                {userData?.Nome || user?.displayName || 'Usuário'}
+                            </Text>
+                            <Text style={[styles.userEmail, { color: 'rgba(255,255,255,0.8)', fontSize: fontSize - 2 }]} numberOfLines={1}>
+                                {user?.email || 'email@exemplo.com'}
+                            </Text>
+                        </View>
                     </View>
                 </View>
-            </View>
+            </LinearGradient>
 
-            <Text style={[styles.text2, themeStyles.text, { fontSize }]}>Gravações Registradas</Text>
-            <Text style={[styles.text3, themeStyles.text, { fontSize }]}>Todas as gravações capturadas do seu ambiente, serão exibidas e disponibilizadas para download.</Text>
-            <View style={[styles.base, themeStyles.base]}>
+            {/* Conteúdo principal */}
+            <View style={styles.content}>
+                <Text style={[styles.sectionTitle, themeStyles.text, { fontSize: fontSize + 2 }]}>
+                    Gravações Registradas
+                </Text>
+                <Text style={[styles.sectionSubtitle, themeStyles.secondaryText, { fontSize }]}>
+                    Todas as gravações capturadas do seu ambiente
+                </Text>
+
                 {filmagens.length === 0 ? (
-                    <>
-                        <Text style={[styles.text4, themeStyles.text, { fontSize }]}>
-                            Nenhuma Gravação Encontrada
+                    <View style={styles.emptyContainer}>
+                        <Image
+                            source={require('../../assets/img/image.png')}
+                            style={styles.emptyImage}
+                        />
+                        <Text style={[styles.emptyText, themeStyles.text, { fontSize }]}>
+                            Nenhuma gravação encontrada
                         </Text>
-                        <View style={{ marginTop: 20 }}>
-                            <Image
-                                source={require('../../assets/img/image.png')}
-                                style={[styles.img, themeStyles.img]}
-                            />
-                        </View>
-                    </>
+                        <Text style={[styles.emptySubtext, themeStyles.secondaryText, { fontSize: fontSize - 2 }]}>
+                            Quando novas gravações forem feitas, elas aparecerão aqui
+                        </Text>
+                    </View>
                 ) : (
                     <FlatList
                         data={filmagens}
                         keyExtractor={(item) => item.id.toString()}
-                        renderItem={({ item }) => (
-                            <View style={styles.itemContainer}>
-                                <Text style={[styles.textItem, themeStyles.text, { fontSize }]}>
-                                    📅 {item.data} ⏰ {item.hora_inicio} - {item.hora_fim}
-                                </Text>
-                                <Text style={[styles.textItem, themeStyles.secondaryText, { fontSize: fontSize - 2 }]}>
-                                    Evento: {item.evento} | Duração: {item.duracao}
-                                </Text>
-                                {/* Reprodutor de vídeo usando expo-av */}
-                                <View style={{ marginTop: 10, width: '100%', height: 200 }}>
-                                    {item.url_video ? (
-                                        <Video
-                                            source={{ uri: item.url_video }} // Usando a URL do vídeo
-                                            style={{ width: '100%', height: '100%' }}
-                                            useNativeControls
-                                            resizeMode="contain"
-                                        />
-                                    ) : (
-                                        <Text style={[styles.text4, themeStyles.text, { fontSize }]}>
-                                            Vídeo não disponível
-                                        </Text>
-                                    )}
-                                </View>
-                            </View>
-                        )}
+                        renderItem={renderItem}
+                        contentContainerStyle={styles.listContainer}
+                        showsVerticalScrollIndicator={false}
                     />
                 )}
             </View>
@@ -93,95 +152,150 @@ const Gravacoes = () => {
 };
 
 const styles = StyleSheet.create({
-    img: {
-        width: 24,
-        height: 24,
-        borderStyle: 'solid',
-        borderWidth: 2,
-        borderColor: "rgba(255, 255, 255, 1.0)"
-    },
-    link: {
-        color: 'blue',
-        fontWeight: 'bold',
-        textDecorationLine: 'underline'
-    },
     container: {
         flex: 1,
-        padding: 20,
-        backgroundColor: '#f0f0f0',
+    },
+    headerGradient: {
+        paddingTop: 50,
+        paddingBottom: 20,
+        paddingHorizontal: 20,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
     },
     header: {
-        width: '100%',
-        marginBottom: 30,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     profileContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        width: '100%',
+        flex: 1,
     },
     profileImage: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
         marginRight: 15,
         borderWidth: 2,
-        borderColor: '#0D293E',
+        borderColor: '#FFF',
     },
     userInfo: {
         flex: 1,
     },
     userName: {
-        fontSize: 22,
         fontWeight: '600',
         marginBottom: 4,
     },
     userEmail: {
-        fontSize: 14,
         opacity: 0.8,
     },
-    secondaryText: {
-        color: '#bdc3c7',
+    content: {
+        flex: 1,
+        padding: 20,
     },
-    base: {
-        width: '100%',
+    sectionTitle: {
+        fontWeight: 'bold',
+        marginBottom: 5,
+        textAlign: 'center',
+    },
+    sectionSubtitle: {
+        textAlign: 'center',
+        marginBottom: 25,
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 50,
-        height: 478,
-        borderRadius: 14,
-        backgroundColor: "#D9D9D9",
-        shadowColor: "#000",       
-        shadowOffset: {
-            width: 0,            
-            height: 2,           
-        },
-        shadowOpacity: 0.25,      
-        shadowRadius: 3.84,       
-        elevation: 5,            
+        padding: 20,
     },
-    text4: {
-        fontSize: 16,
+    emptyImage: {
+        width: 150,
+        height: 150,
+        marginBottom: 20,
+    },
+    emptyText: {
         fontWeight: 'bold',
-        color: '#000',
+        marginBottom: 10,
         textAlign: 'center',
-        marginTop: 20,
     },
-    text2: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#000',
+    emptySubtext: {
         textAlign: 'center',
-        marginTop: 20,
     },
-    text3: {
-        fontSize: 16,
-        color: '#000',
-        textAlign: 'center',
-        marginTop: 20,
+    listContainer: {
+        paddingBottom: 20,
     },
-    textItem: {
-        fontSize: 16,
+    itemContainer: {
+        borderRadius: 12,
+        marginBottom: 20,
+        overflow: 'hidden',
+    },
+    itemHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        padding: 15,
+        borderBottomWidth: 1,
+    },
+    dateTimeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    dateText: {
+        marginLeft: 5,
+    },
+    timeText: {
+        marginLeft: 5,
+    },
+    eventText: {
         fontWeight: '600',
-        color: '#000',
+        paddingHorizontal: 15,
+        paddingTop: 10,
+    },
+    videoContainer: {
+        width: '100%',
+        aspectRatio: 16/9,
+    },
+    videoPlayer: {
+        width: '100%',
+        height: '100%',
+    },
+    noVideoContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.05)',
+    },
+    noVideoText: {
+        marginTop: 10,
+    },
+    downloadButton: {
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+    },
+    downloadText: {
+        color: '#FFF',
+        marginLeft: 5,
+        fontWeight: '600',
+    },
+    itemFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 15,
+        borderTopWidth: 1,
+    },
+    durationText: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    shareButton: {
+        padding: 5,
     },
 });
 
@@ -189,36 +303,49 @@ const darkStyles = StyleSheet.create({
     container: {
         backgroundColor: '#121212',
     },
-    base: {
-        backgroundColor: '#1e1e1e',
+    itemContainer: {
+        backgroundColor: '#1E1E1E',
+        borderColor: '#333',
     },
     text: {
-        color: '#ffffff',
+        color: '#FFF',
     },
     secondaryText: {
         color: '#bdc3c7',
     },
-    link: {
-        color: '#ffffff',
-    }
+    itemHeader: {
+        borderColor: '#333',
+    },
+    itemFooter: {
+        borderColor: '#333',
+    },
 });
 
 const lightStyles = StyleSheet.create({
     container: {
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#F8F9FA',
     },
-    base: {
-        backgroundColor: '#ffffff',
+    itemContainer: {
+        backgroundColor: '#FFF',
+        borderColor: '#EEE',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     text: {
-        color: '#2c3e50',
+        color: '#2C3E50',
     },
     secondaryText: {
-        color: '#7f8c8d',
+        color: '#7F8C8D',
     },
-    link: {
-        color: '#2c3e50',
-    }
+    itemHeader: {
+        borderColor: '#EEE',
+    },
+    itemFooter: {
+        borderColor: '#EEE',
+    },
 });
 
 export default Gravacoes;
