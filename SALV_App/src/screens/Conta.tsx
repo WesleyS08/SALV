@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Switch, Modal, TextInput, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Switch, Modal, TextInput, Dimensions, Alert } from 'react-native';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { useFontSize } from '../Global/FontSizeContext';
 import { useDarkMode } from '../Global/DarkModeContext';
-import { signOut } from 'firebase/auth';
 import { auth } from '../DB/firebase';
 import * as ImagePicker from 'expo-image-picker';
 import CustomToast from '../components/CustomToast';
 import { dbFunctionInsertPhotoProfile } from '../DB/dbFunctionInsertPhotoProfile';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { getAuth, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
+import { getAuth, signOut, signInWithEmailAndPassword, updatePassword } from 'firebase/auth';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation.types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import supabase from '../DB/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+
 
 const { width } = Dimensions.get('window');
 
@@ -25,7 +25,7 @@ interface ContaProps {
     navigation: ContaScreenNavigationProp;
 }
 
-const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28];
+const fontSizes = [10, 12, 14, 16, 18, 20, 22];
 
 const Conta = () => {
     const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -266,6 +266,62 @@ const Conta = () => {
         }
     };
 
+    const handleDeleteAccount = async () => {
+        Alert.alert(
+            "Confirmar Exclusão",
+            "Deseja realmente desativar sua conta? Essa ação não poderá ser desfeita.",
+            [
+                { text: "Cancelar", style: "cancel" },
+                {
+                    text: "Desativar",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            const auth = getAuth();
+                            const currentUser = auth.currentUser;
+
+                            if (!currentUser) {
+                                Alert.alert("Erro", "Usuário não autenticado.");
+                                return;
+                            }
+
+                            const UID = currentUser.uid;
+                            const anonEmail = `anonimo+${UID}@seudominio.com`;
+                            const dataAtual = new Date().toISOString();
+
+                            // Atualiza dados no Supabase
+                            const { data, error } = await supabase
+                                .from('Tb_Usuarios')
+                                .update({
+                                    Nome: 'Conta deletada',
+                                    Email: anonEmail,
+                                    UID: null,
+                                    Data_Desativacao: dataAtual, // novo campo recomendado
+                                    photoURL: null
+                                })
+                                .eq('UID', UID);
+
+                            if (error) {
+                                console.error(error);
+                                Alert.alert("Erro", "Não foi possível desativar a conta.");
+                                return;
+                            }
+
+                            // Desloga do Firebase
+                            await signOut(auth);
+                            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+
+                        } catch (err) {
+                            console.error(err);
+                            Alert.alert("Erro", "Algo deu errado.");
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+
     if (loading) {
         return (
             <View style={[styles.loadingContainer, isDarkMode && styles.loadingContainerDark]}>
@@ -365,16 +421,40 @@ const Conta = () => {
                     <View style={styles.fontSizeControls}>
                         <TouchableOpacity
                             onPress={() => setFontSize(Math.max(12, fontSize - 2))}
-                            style={styles.fontSizeButton}
+                            style={[
+                                styles.fontSizeButton,
+                                {
+                                    backgroundColor: isDarkMode ? '#424242' : '#E0E0E0'
+                                }
+                            ]}
                         >
-                            <Text style={[styles.fontSizeButtonText, isDarkMode && styles.fontSizeButtonTextDark]}>A-</Text>
+                            <Text style={{
+                                fontSize: 16,
+                                fontWeight: 'bold',
+                                color: isDarkMode ? '#FFF' : '#333'
+                            }}>A-</Text>
                         </TouchableOpacity>
-                        <Text style={[styles.fontSizeValue, isDarkMode && styles.fontSizeValueDark]}>{fontSize}</Text>
+
+                        <Text style={{
+                            marginHorizontal: 10,
+                            fontSize: 16,
+                            color: isDarkMode ? '#FFF' : '#333'
+                        }}>{fontSize}</Text>
+
                         <TouchableOpacity
                             onPress={() => setFontSize(Math.min(28, fontSize + 2))}
-                            style={styles.fontSizeButton}
+                            style={[
+                                styles.fontSizeButton,
+                                {
+                                    backgroundColor: isDarkMode ? '#424242' : '#E0E0E0'
+                                }
+                            ]}
                         >
-                            <Text style={[styles.fontSizeButtonText, isDarkMode && styles.fontSizeButtonTextDark]}>A+</Text>
+                            <Text style={{
+                                fontSize: 16,
+                                fontWeight: 'bold',
+                                color: isDarkMode ? '#FFF' : '#333'
+                            }}>A+</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -423,7 +503,7 @@ const Conta = () => {
 
                 <TouchableOpacity
                     style={[styles.actionButton, styles.deleteButton]}
-                    onPress={() => console.log('Deletar conta')}
+                    onPress={handleDeleteAccount}
                 >
                     <Ionicons name="trash" size={20} color="#FFF" />
                     <Text style={[styles.actionButtonText, { fontSize }]}>Deletar Conta</Text>
@@ -552,7 +632,7 @@ const Conta = () => {
 
                         <ScrollView
                             style={styles.modalScroll}
-                            contentContainerStyle={{ paddingBottom: 20 }} 
+                            contentContainerStyle={{ paddingBottom: 20 }}
                             showsVerticalScrollIndicator={true}
                         >
                             <Text style={[styles.modalText, isDarkMode && styles.modalTextDark, { fontSize }]}>
@@ -622,7 +702,7 @@ const styles = StyleSheet.create({
         borderRadius: 40,
         borderWidth: 2,
         borderColor: 'rgba(255,255,255,0.3)',
-    }, 
+    },
     editIcon: {
         position: 'absolute',
         bottom: 0,

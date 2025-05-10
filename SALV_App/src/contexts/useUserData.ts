@@ -1,4 +1,3 @@
-// src/contexts/useUserData.ts
 import { useEffect, useState } from 'react';
 import supabase from '../DB/supabase';
 import { User } from 'firebase/auth';
@@ -15,7 +14,6 @@ export function useUserData(user: User | null) {
         url: null,
         updated_at: null
     });
-    const [updatedAtFormatted, setUpdatedAtFormatted] = useState<string | null>(null);
     const [filmagens, setFilmagens] = useState<any[]>([]);
 
     const formatDateTime = (isoString: string): string => {
@@ -51,8 +49,9 @@ export function useUserData(user: User | null) {
 
                 // Buscar filmagens do usuário
                 const { data: filmagensData, error: filmagensError } = await supabase
-                    .from('filmagens')
+                    .from('Tb_Filmagens') 
                     .select('*')
+                    .eq('ID_Usuarios', user.uid) 
                     .order('data', { ascending: false });
 
                 if (filmagensError) throw filmagensError;
@@ -71,13 +70,12 @@ export function useUserData(user: User | null) {
     useEffect(() => {
         if (!user?.uid) return;
 
-        let interval: NodeJS.Timeout;
-
         const checkLiveStatus = async () => {
             try {
                 const { data, error } = await supabase
                     .from('ngrok_links')
                     .select('AoVivo, updated_at, url')
+                    .eq('ID_Usuarios', user.uid)  // Adicionando o filtro para o ID_Usuarios
                     .single();
 
                 if (error) throw error;
@@ -89,8 +87,6 @@ export function useUserData(user: User | null) {
                 // Atualizar estados apenas se houver mudanças
                 if (isCurrentlyLive !== isLiveActive) {
                     setIsLiveActive(isCurrentlyLive);
-                    
-                
                 }
 
                 if (currentUrl !== ngrokData.url || currentUpdatedAt !== ngrokData.updated_at) {
@@ -98,17 +94,15 @@ export function useUserData(user: User | null) {
                         url: currentUrl,
                         updated_at: currentUpdatedAt
                     });
-                    
-                    setUpdatedAtFormatted(currentUpdatedAt ? formatDateTime(currentUpdatedAt) : null);
                 }
             } catch (error: any) {
                 console.error('Erro ao checar status AoVivo:', error.message);
             }
         };
 
-        // Verificar imediatamente e depois a cada 10 minutos
+        // Verificar status ao vivo e atualizar a cada 10 minutos
         checkLiveStatus();
-        interval = setInterval(checkLiveStatus, 600000);
+        const interval = setInterval(checkLiveStatus, 600000);
 
         return () => clearInterval(interval);
     }, [user?.uid, isLiveActive, ngrokData.url, ngrokData.updated_at]);
@@ -118,8 +112,7 @@ export function useUserData(user: User | null) {
         loading, 
         errorMsg,
         isLiveActive,
-        updatedAt: ngrokData.updated_at,
-        updatedAtFormatted,
+        updatedAt: ngrokData.updated_at ? formatDateTime(ngrokData.updated_at) : null,
         ngrokLink: ngrokData.url, 
         filmagens
     };

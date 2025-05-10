@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Image, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, Linking, Platform} from 'react-native';
+import { View, Text, StyleSheet, Modal, Image, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, FlatList, Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserData } from '../contexts/useUserData';
@@ -11,19 +11,20 @@ import 'moment/locale/pt-br';
 import { useDarkMode } from '../Global/DarkModeContext';
 import { useFontSize } from '../Global/FontSizeContext';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
+import { User } from 'firebase/auth';
 
 moment.locale('pt-br');
 
 const Home = ({ navigation }: any) => {
   const { user, loading: authLoading } = useAuth();
   const { userData, loading: dataLoading, errorMsg } = useUserData(user);
-  const { acessos, filmagens, loading: dadosLoading, error: dadosError } = useDadosAcessos();
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { acessos, filmagens, loading: dadosLoading, error: dadosError } = useDadosAcessos(user?.uid);
   const [showModal, setShowModal] = useState(false);
   const [lastAccess, setLastAccess] = useState<string | null>(null);
   const [welcomeMessage, setWelcomeMessage] = useState('Bem-vindo de volta!');
   const [activeTab, setActiveTab] = useState<'acessos' | 'filmagens'>('acessos');
   const { fontSize, setFontSize } = useFontSize();
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Usando o contexto de DarkMode
   const { isDarkMode } = useDarkMode();
@@ -84,18 +85,18 @@ const Home = ({ navigation }: any) => {
       </View>
       <View style={styles.itemRow}>
         <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]} >Entrada:</Text>
-        <Text style={[styles.itemValue, themeStyles.text , { fontSize }]}>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
           {moment(item.entrada).format('DD/MM/YYYY HH:mm')}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText , { fontSize }]}>Saída:</Text>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Saída:</Text>
         <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
           {item.saida ? moment(item.saida).format('DD/MM/YYYY HH:mm') : 'Em andamento'}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText , { fontSize }]}>Dispositivo:</Text>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Dispositivo:</Text>
         <Text style={[styles.itemValue, themeStyles.text, { fontSize }]} numberOfLines={1}>
           {item.Dispositivo_id || 'Não informado'}
         </Text>
@@ -103,45 +104,85 @@ const Home = ({ navigation }: any) => {
     </View>
   );
 
-  const renderFilmagemItem = ({ item }: { item: any }) => (
+const renderFilmagemItem = ({ item }: { item: any }) => {
+  // Verifica se os dados existem e acessa com segurança
+  console.log('Filmagem Item:', item);
+
+  // Dados da filmagem
+  const evento = item?.evento || 'Filmagem sem título';
+  const dataFormatada = item?.data ? moment(item.data).format('DD/MM/YYYY') : 'Data não disponível';
+  
+  // Calcular a duração (se "inicio" e "fim" existirem)
+  const duracao = item?.inicio && item?.fim
+    ? moment(item.fim).diff(moment(item.inicio), 'minutes') // Calcula a diferença em minutos
+    : 'Duração não disponível';
+    
+  const tamanhoArquivo = item?.tamanho_arquivo_mb ? `${item.tamanho_arquivo_mb} MB` : 'Tamanho não disponível';
+  
+  // Dados do usuário
+  const instituicao = item?.Tb_Usuarios?.Instituicao || 'Instituição não disponível';
+  const nomeUsuario = item?.Tb_Usuarios?.Nome || 'Nome não disponível';
+
+  return (
     <TouchableOpacity
       style={[styles.itemContainer, themeStyles.itemContainer]}
       onPress={() => navigation.navigate('Gravações', { filmagem: item })}
     >
       <View style={styles.itemHeader}>
         <Ionicons name="videocam" size={20} color="#2196F3" />
-        <Text style={[styles.itemTitle, themeStyles.text , { fontSize }]}>
-          {item.evento || 'Filmagem sem título'}
+        <Text style={[styles.itemTitle, themeStyles.text, { fontSize }]}>
+          {evento}
         </Text>
       </View>
       <View style={styles.itemRow}>
-        <Text style={[styles.itemLabel, themeStyles.secondaryText , { fontSize }]}>Data:</Text>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Data:</Text>
         <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
-          {moment(item.data).format('DD/MM/YYYY')}
+          {dataFormatada}
         </Text>
       </View>
       <View style={styles.itemRow}>
         <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Horário:</Text>
         <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
-          {item.hora_inicio} - {item.hora_fim}
+          {item?.inicio && item?.fim
+            ? `${moment(item.inicio).format('HH:mm')} - ${moment(item.fim).format('HH:mm')}`
+            : 'Horário não disponível'}
         </Text>
       </View>
       <View style={styles.itemRow}>
         <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Duração:</Text>
-        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>{item.duracao}</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
+          {duracao !== 'Duração não disponível' ? `${duracao} minutos` : duracao}
+        </Text>
       </View>
       <View style={styles.itemRow}>
-      <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Tamanho:</Text>
-      <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>{item.tamanho_arquivo_mb} MB</Text>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Tamanho:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
+          {tamanhoArquivo}
+        </Text>
+      </View>
+      <View style={styles.itemRow}>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Instituição:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
+          {instituicao}
+        </Text>
+      </View>
+      <View style={styles.itemRow}>
+        <Text style={[styles.itemLabel, themeStyles.secondaryText, { fontSize }]}>Nome do Usuário:</Text>
+        <Text style={[styles.itemValue, themeStyles.text, { fontSize }]}>
+          {nomeUsuario}
+        </Text>
       </View>
     </TouchableOpacity>
   );
+};
+
+
 
   if (authLoading || dataLoading || dadosLoading) {
     return (
       <SafeAreaView style={[styles.container, themeStyles.container]}>
         <ActivityIndicator size="large" color="#0D293E" />
-        <Text style={[styles.loadingText, themeStyles.text , { fontSize }]}>Carregando dados...</Text>
+        <Text style={[styles.loadingText, themeStyles.text, { fontSize }]}>Carregando dados...</Text>
       </SafeAreaView>
     );
   }
@@ -151,7 +192,7 @@ const Home = ({ navigation }: any) => {
       <SafeAreaView style={[styles.container, themeStyles.container]}>
         <View style={styles.errorContainer}>
           <Ionicons name="warning" size={40} color="#ff6659" />
-          <Text style={[styles.errorText, themeStyles.errorText , { fontSize }]}>
+          <Text style={[styles.errorText, themeStyles.errorText, { fontSize }]}>
             {errorMsg || dadosError}
           </Text>
           <TouchableOpacity
@@ -190,7 +231,7 @@ const Home = ({ navigation }: any) => {
               style={styles.profileImage}
             />
             <View style={styles.userInfo}>
-              <Text style={[styles.userName, themeStyles.text , { fontSize }]} numberOfLines={1}>
+              <Text style={[styles.userName, themeStyles.text, { fontSize }]} numberOfLines={1}>
                 {userData?.Nome || user?.displayName || 'Usuário'}
               </Text>
               <Text style={[styles.userEmail, themeStyles.secondaryText, { fontSize }]} numberOfLines={1}>
@@ -202,10 +243,10 @@ const Home = ({ navigation }: any) => {
 
         <View style={styles.content}>
           <View style={[styles.card, themeStyles.card]}>
-            <Text style={[styles.welcomeTitle, themeStyles.text , { fontSize }]}>
+            <Text style={[styles.welcomeTitle, themeStyles.text, { fontSize }]}>
               {welcomeMessage}
             </Text>
-            <Text style={[styles.welcomeText, themeStyles.secondaryText , { fontSize }]}>
+            <Text style={[styles.welcomeText, themeStyles.secondaryText, { fontSize }]}>
               {lastAccess
                 ? `Último acesso: ${lastAccess}`
                 : 'Estamos felizes em te ver por aqui!'}
@@ -224,7 +265,7 @@ const Home = ({ navigation }: any) => {
               <Text style={[
                 styles.tabButtonText,
                 activeTab === 'acessos' && styles.activeTabButtonText,
-                themeStyles.tabButtonText , { fontSize }
+                themeStyles.tabButtonText, { fontSize }
               ]}>
                 Histórico de Acessos
               </Text>
@@ -240,7 +281,7 @@ const Home = ({ navigation }: any) => {
               <Text style={[
                 styles.tabButtonText,
                 activeTab === 'filmagens' && styles.activeTabButtonText,
-                themeStyles.tabButtonText , { fontSize }
+                themeStyles.tabButtonText, { fontSize }
               ]}>
                 Histórico de Filmagens
               </Text>
@@ -254,7 +295,7 @@ const Home = ({ navigation }: any) => {
               keyExtractor={(item, index) => `${item.UID}-${index}`}
               scrollEnabled={false}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, themeStyles.secondaryText , { fontSize }]}>
+                <Text style={[styles.emptyText, themeStyles.secondaryText, { fontSize }]}>
                   Nenhum acesso registrado
                 </Text>
               }
@@ -264,10 +305,10 @@ const Home = ({ navigation }: any) => {
             <FlatList
               data={filmagens}
               renderItem={renderFilmagemItem}
-              keyExtractor={(item, index) => `${item.id}-${index}`}
+              keyExtractor={(item, index) => `${item.ID}-${index}`}
               scrollEnabled={false}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, themeStyles.secondaryText , { fontSize }]}>
+                <Text style={[styles.emptyText, themeStyles.secondaryText, { fontSize }]}>
                   Nenhuma filmagem registrada
                 </Text>
               }
@@ -294,12 +335,12 @@ const Home = ({ navigation }: any) => {
             />
 
             {/* Título do Modal */}
-            <Text style={[styles.modalTitle, themeStyles.text , { fontSize }]}>
+            <Text style={[styles.modalTitle, themeStyles.text, { fontSize }]}>
               Bem-vindo ao nosso app!
             </Text>
 
             {/* Mensagem do Modal */}
-            <Text style={[styles.modalText, themeStyles.secondaryText , { fontSize }]}>
+            <Text style={[styles.modalText, themeStyles.secondaryText, { fontSize }]}>
               Se lembre de cadastrar o cartao ou a tag para registrar os acessos e filmagens.
             </Text>
 
@@ -556,7 +597,7 @@ const darkStyles = StyleSheet.create({
   activeTabButton: {
     backgroundColor: '#0D293E',
   },
-  
+
   container: {
     backgroundColor: '#121212',
   },

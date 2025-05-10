@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, TextInput, Text, Modal, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, Animated, Easing, ActivityIndicator, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { app } from '../DB/firebase';
 import { LinearGradient } from 'expo-linear-gradient';
 import CustomToast from '../components/CustomToast';
 import { NavigationProp } from '@react-navigation/native';
 import * as Crypto from 'expo-crypto';
+import supabase from '../DB/supabase';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
@@ -158,19 +159,38 @@ const particles = useMemo(
       setToastMessage('Email e senha são obrigatórios');
       return;
     }
-
+  
     if (!validateEmail(email)) {
       setToastMessage('Formato de email inválido');
       return;
     }
-
+  
     setLoading(true);
-
+  
     try {
       const auth = getAuth(app);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const { uid, email: userEmail } = userCredential.user;
-
+  
+      // 🔒 Checar se o usuário está desativado no Supabase
+      const { data, error } = await supabase
+        .from('Tb_Usuarios')
+        .select('Data_Desativacao')
+        .eq('UID', uid)
+        .single();
+  
+      if (error || !data) {
+        throw new Error("Não foi possível verificar o status da conta.");
+      }
+  
+      if (data.Data_Desativacao) {
+        await signOut(auth);
+        setModalMessage("Sua conta foi desativada. Entre em contato com o suporte.");
+        setErrorModalVisible(true);
+        return;
+      }
+  
+      // 🔐 Salvar biometria se estiver habilitado
       if (enableBiometric) {
         try {
           await saveCredentialsForBiometric(email, password);
@@ -179,7 +199,8 @@ const particles = useMemo(
           console.warn('Biometria não configurada:', error);
         }
       }
-
+  
+      // ✅ Navegar para a Home
       navigation.reset({
         index: 0,
         routes: [{
@@ -187,10 +208,10 @@ const particles = useMemo(
           params: { user: { id: uid, email: userEmail } }
         }],
       });
-
+  
     } catch (error: any) {
       let errorMessage = 'Erro ao fazer login';
-
+  
       if (error.code) {
         switch (error.code) {
           case 'auth/invalid-credential':
@@ -212,14 +233,14 @@ const particles = useMemo(
             errorMessage = error.message || 'Erro desconhecido';
         }
       }
-
+  
       setModalMessage(errorMessage);
       setErrorModalVisible(true);
     } finally {
       setLoading(false);
     }
   };
-
+  
   return (
     <View style={styles.container}>
       {toastMessage && (

@@ -11,12 +11,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 const { width } = Dimensions.get('window');
 
 type Filmagem = {
-    id: number;
+    ID: number;
     data: string;
     hora_inicio: string;
     hora_fim: string;
     evento: string;
     url_video?: string;
+    duracao?: string;
 };
 
 const Gravacoes = () => {
@@ -24,7 +25,7 @@ const Gravacoes = () => {
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
     const { user } = useAuth();
     const { userData, filmagens } = useUserData(user);
-    const { fontSize, setFontSize } = useFontSize();
+    const { fontSize } = useFontSize();
 
     const renderItem = ({ item }: { item: Filmagem }) => (
         <View style={[styles.itemContainer, themeStyles.itemContainer]}>
@@ -77,7 +78,7 @@ const Gravacoes = () => {
             
             <View style={styles.itemFooter}>
                 <Text style={[styles.durationText, themeStyles.secondaryText]}>
-                    <Ionicons name="timer" size={14} /> {item.duracao}
+                    <Ionicons name="timer" size={14} /> {item.duracao || 'N/A'}
                 </Text>
                 <TouchableOpacity style={styles.shareButton}>
                     <Ionicons name="share-social" size={18} color="#0D293E" />
@@ -88,7 +89,6 @@ const Gravacoes = () => {
 
     return (
         <View style={[styles.container, themeStyles.container]}>
-            {/* Header com gradiente */}
             <LinearGradient
                 colors={isDarkMode ? ['#0D293E', '#121212'] : ['#0D293E', '#f8f9fa']}
                 style={styles.headerGradient}
@@ -115,7 +115,6 @@ const Gravacoes = () => {
                 </View>
             </LinearGradient>
 
-            {/* Conteúdo principal */}
             <View style={styles.content}>
                 <Text style={[styles.sectionTitle, themeStyles.text, { fontSize: fontSize + 2 }]}>
                     Gravações Registradas
@@ -140,7 +139,7 @@ const Gravacoes = () => {
                 ) : (
                     <FlatList
                         data={filmagens}
-                        keyExtractor={(item) => item.id.toString()}
+                        keyExtractor={(item) => item.ID.toString()}
                         renderItem={renderItem}
                         contentContainerStyle={styles.listContainer}
                         showsVerticalScrollIndicator={false}

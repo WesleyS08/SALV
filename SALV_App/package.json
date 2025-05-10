@@ -16,7 +16,7 @@
   "dependencies": {
     "@expo/vector-icons": "^14.0.2",
     "@lottiefiles/dotlottie-react": "^0.6.5",
-    "@react-native-async-storage/async-storage": "^1.24.0",
+    "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-firebase/app": "^21.14.0",
     "@react-native-firebase/messaging": "^21.14.0",
     "@react-navigation/bottom-tabs": "^7.2.0",
@@ -44,7 +44,7 @@
     "expo-modules-core": "~2.2.3",
     "expo-navigation-bar": "~4.0.9",
     "expo-notifications": "~0.29.14",
-    "expo-router": "~4.0.20",
+    "expo-router": "~4.0.21",
     "expo-screen-orientation": "~8.0.4",
     "expo-secure-store": "~14.0.1",
     "expo-sensors": "~14.0.2",
