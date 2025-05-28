@@ -420,7 +420,7 @@ const Conta = () => {
                     </View>
                     <View style={styles.fontSizeControls}>
                         <TouchableOpacity
-                            onPress={() => setFontSize(Math.max(12, fontSize - 2))}
+                            onPress={() => setFontSize(Math.min(12, fontSize - 2))}
                             style={[
                                 styles.fontSizeButton,
                                 {
@@ -442,7 +442,7 @@ const Conta = () => {
                         }}>{fontSize}</Text>
 
                         <TouchableOpacity
-                            onPress={() => setFontSize(Math.min(28, fontSize + 2))}
+                            onPress={() => setFontSize(Math.max(24, fontSize + 2))}
                             style={[
                                 styles.fontSizeButton,
                                 {

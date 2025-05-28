@@ -479,11 +479,11 @@ def criar_broadcast_youtube(youtube):
                 "scheduledStartTime": datetime.utcnow().isoformat() + "Z"
             },
             "status": {
-                "privacyStatus": "public"
+                "privacyStatus": "unlisted"  
             },
             "contentDetails": {
                 "enableAutoStart": True,
-                "enableAutoStop": True
+                "enableAutoStop": True,
             }
         }
 
@@ -520,6 +520,7 @@ def criar_broadcast_youtube(youtube):
     except Exception as ex:
         print(f"❌ Erro inesperado ao criar broadcast: {ex}")
         return None, None
+
 
 def vincular_stream_a_broadcast(youtube, broadcast_id, stream_id):
     try:

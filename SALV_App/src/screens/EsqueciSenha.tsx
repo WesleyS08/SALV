@@ -134,18 +134,22 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
     } catch (error) {
       let errorMessage = 'Erro ao enviar e-mail de redefinição';
       
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'Nenhuma conta encontrada com este e-mail';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Formato de e-mail inválido';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Muitas tentativas. Tente novamente mais tarde';
-          break;
-        default:
-          errorMessage = `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+      if (typeof error === 'object' && error !== null && 'code' in error) {
+        switch ((error as { code: string }).code) {
+          case 'auth/user-not-found':
+            errorMessage = 'Nenhuma conta encontrada com este e-mail';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Formato de e-mail inválido';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Muitas tentativas. Tente novamente mais tarde';
+            break;
+          default:
+            errorMessage = `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
+        }
+      } else {
+        errorMessage = `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
       }
       
       setModalMessage(errorMessage);

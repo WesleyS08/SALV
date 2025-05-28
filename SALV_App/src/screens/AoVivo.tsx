@@ -29,7 +29,7 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
     const { isDarkMode } = useDarkMode();
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
     const { user } = useAuth();
-    const { userData, isLiveActive, ngrokLink, updatedAtFormatted } = useUserData(user);
+    const { userData, isLiveActive} = useUserData(user);
     const { fontSize } = useFontSize();
     const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
     const playerRef = useRef<any>(null);
@@ -98,6 +98,17 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
 
     const videoId = extractVideoId(streamInfo.videoUrl) || undefined;
 
+    // Formata a data da última transmissão
+    const updatedAtFormatted = streamInfo.lastStream
+        ? new Date(streamInfo.lastStream).toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+        : undefined;
+
     // Controle da orientação da tela
     useEffect(() => {
         ScreenOrientation.unlockAsync();
@@ -130,7 +141,7 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
 
     // Botão para abrir link da live
     const handlePress = () => {
-        const url = ngrokLink || 'https://www.youtube.com/watch?v=wACTDUyZEws';
+        const url = streamInfo.videoUrl;
         Linking.openURL(url).catch(err => console.error('Erro ao abrir link:', err));
     };
 
@@ -163,9 +174,10 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
             Alert.alert('Erro', 'Não foi possível alternar o monitoramento');
         }
     };
-console.log('streamInfo.videoUrl:', streamInfo.videoUrl);
-console.log('videoId atual:', videoId);
-console.log('Estado da live:', streamInfo.isLive);
+    
+    console.log('streamInfo.videoUrl:', streamInfo.videoUrl);
+    console.log('videoId atual:', videoId);
+    console.log('Estado da live:', streamInfo.isLive);
 
 
     return (
@@ -220,7 +232,7 @@ console.log('Estado da live:', streamInfo.isLive);
                     !playerError ? (
                         <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
                             <YoutubePlayer
-                                key={videoId} 
+                                key={videoId}
                                 ref={playerRef}
                                 height={isFullscreen ? width : 220}
                                 play={true}
@@ -231,6 +243,12 @@ console.log('Estado da live:', streamInfo.isLive);
                                 }}
                                 webViewStyle={styles.videoPlayer}
                                 onReady={() => setPlayerError(false)}
+                                onChangeState={state => {
+                                    if (state === 'ended') {
+                                        // opcional: tratar quando a live acabar
+                                    }
+                                }}
+                                onFullScreenChange={(status: boolean | ((prevState: boolean) => boolean)) => setIsFullscreen(status)}
                             />
                             <TouchableOpacity
                                 style={styles.fullscreenButton}
