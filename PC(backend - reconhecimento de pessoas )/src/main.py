@@ -282,24 +282,37 @@ def configurar_cena_obs(nome_fonte="Camera_Seguranca"):
 
 def autenticar_google_api():
     creds = None
-    
 
-    if os.path.exists(TOKEN_PICKLE):
-        with open(TOKEN_PICKLE, 'rb') as token:
-            creds = pickle.load(token)
+    try:
+        if os.path.exists(TOKEN_PICKLE):
+            with open(TOKEN_PICKLE, 'rb') as token:
+                creds = pickle.load(token)
 
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                try:
+                    creds.refresh(Request())
+                except Exception as e:
+                    print(f"⚠️ Erro ao tentar atualizar o token expirado: {e}")
+                    creds = None  
+            else:
+                creds = None  
+
+        
+        if not creds:
+            print("🔐 Iniciando novo fluxo de autenticação com o Google...")
             flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
             creds = flow.run_local_server(port=0)
 
-        with open(TOKEN_PICKLE, 'wb') as token:
-            pickle.dump(creds, token)
+            with open(TOKEN_PICKLE, 'wb') as token:
+                pickle.dump(creds, token)
 
-    youtube = build('youtube', 'v3', credentials=creds)
-    return youtube
+        youtube = build('youtube', 'v3', credentials=creds)
+        return youtube
+
+    except Exception as e:
+        print(f"❌ Erro na autenticação com Google API: {e}")
+        return None
 
 
 
