@@ -2,32 +2,32 @@ import { useEffect, useState } from 'react';
 import supabase from '../DB/supabase';
 
 interface Usuario {
-  ID_Usuarios: string;
-  Nome: string;
-  Instituicao: string;
-  UID: string;
+    ID_Usuarios: string;
+    Nome: string;
+    Instituicao: string;
+    UID: string;
 }
 
 interface Acesso {
-  ID_Acesso: number;
-  UID: string;
-  Nome_usuario: string;
-  Dispositivo_id: string;
-  entrada: string;
-  saida: string | null;
-  ID_Usuarios: string | null;
-  Usuarios?: Usuario;
+    ID_Acesso: number;
+    UID: string;
+    Nome_usuario: string;
+    Dispositivo_id: string;
+    entrada: string;
+    saida: string | null;
+    ID_Usuarios: string | null;
+    Usuarios?: Usuario;
 }
 
 interface Filmagem {
-  ID: number;
-  ID_Usuarios: string;
-  inicio: string;
-  fim: string | null;
-  url_video: string | null;
-  data: string;
-  evento: string | null;
-  Usuarios?: Usuario;
+    ID: number;
+    ID_Usuarios: string;
+    inicio: string;
+    fim: string | null;
+    url_video: string | null;
+    data: string;
+    evento: string | null;
+    Usuarios?: Usuario;
 }
 
 export function useDadosAcessos(userId: string | undefined) {
@@ -55,7 +55,7 @@ export function useDadosAcessos(userId: string | undefined) {
                     setLoading(true);
                     setError(null);
                 }
-                
+
                 // 1. Buscar dados do usuário
                 const { data: userData, error: userError } = await supabase
                     .from('Tb_Usuarios')
@@ -65,7 +65,7 @@ export function useDadosAcessos(userId: string | undefined) {
 
                 if (userError) throw userError;
                 if (!userData) throw new Error('Usuário não encontrado');
-                
+
                 const userInstituicao = userData.Instituicao;
                 const userUID = userData.UID;
 

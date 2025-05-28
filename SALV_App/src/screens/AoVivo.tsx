@@ -14,23 +14,12 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import supabase from '../DB/supabase';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../navigation/types'; 
+import { RootStackParamList } from '../navigation/types';
+import { RefreshControl } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
 
-const extractVideoId = (url: string) => {
-    // Regex para capturar o ID de vídeo
-    const videoRegex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+|(?:v|e(?:mbed)?)\/([^\/\n\s]+)|(?:watch\?v=|v%3D)([^\/\n\s]+))|youtu\.be\/([^\/\n\s]+))/;
-    
-    // Tentando capturar o ID de vídeo
-    const match = url.match(videoRegex);
-    if (match) {
-        return match[1] || match[2] || match[3] || match[4]; // ID do vídeo
-    }
-
-    return null; 
-};
 
 type AoVivoProps = {
     navigation: StackNavigationProp<RootStackParamList, 'AoVivo'>;
@@ -41,120 +30,95 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
     const { user } = useAuth();
     const { userData, isLiveActive, ngrokLink, updatedAtFormatted } = useUserData(user);
-    const { fontSize, setFontSize } = useFontSize();
+    const { fontSize } = useFontSize();
     const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
     const playerRef = useRef<any>(null);
     const [playerError, setPlayerError] = useState(false);
-    const [playerReady, setPlayerReady] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const videoId = ngrokLink ? extractVideoId(ngrokLink) : null;
+    const [refreshing, setRefreshing] = useState(false);
 
+    const [streamInfo, setStreamInfo] = useState<{
+        isLive: boolean;
+        lastStream: string;
+        viewers: number;
+        videoUrl: string;
+    }>({
+        isLive: false,
+        lastStream: '',
+        viewers: 0,
+        videoUrl: '',
+    });
 
+    // Extrai o videoId do YouTube da URL
+    const extractVideoId = (url: string): string | null => {
+        if (!url) return null;
+        const regex = /(?:youtube\.com\/.*v=|youtu\.be\/)([^&\n?#]+)/;
+        const match = url.match(regex);
+        return match && match[1] ? match[1] : null;
+    };
 
-    const toggleBackgroundTask = async () => {
+    // Atualiza os dados do Supabase
+    const atualizarConteudo = async () => {
         try {
-            // Obter status atual
-            const tasks = await TaskManager.getRegisteredTasksAsync();
-            const isRegistered = tasks.some(t => t.taskName === LIVE_STATUS_TASK);
+            const { data, error } = await supabase
+                .from('ngrok_links')
+                .select('*')
+                .order('updated_at', { ascending: false })
+                .limit(1);
 
-            if (isRegistered) {
-                // Desativar monitoramento
-                await BackgroundFetch.unregisterTaskAsync(LIVE_STATUS_TASK);
-                setIsNotificationEnabled(false);
-                console.log('Monitoramento desativado');
-                Alert.alert('Monitoramento', 'Notificações desativadas com sucesso');
-            } else {
-                // Ativar monitoramento
-                const { status } = await Notifications.requestPermissionsAsync();
-                if (status !== 'granted') {
-                    Alert.alert('Permissão necessária', 'Por favor, ative as notificações');
-                    return;
-                }
+            if (error) throw error;
 
-                await BackgroundFetch.registerTaskAsync(LIVE_STATUS_TASK, {
-                    minimumInterval: 15 * 60, // 15 minutos (mínimo no Android)
-                    stopOnTerminate: false,
-                    startOnBoot: true,
+            if (data && data.length > 0) {
+                const streamData = data[0];
+
+                setStreamInfo({
+                    isLive: streamData.AoVivo ?? false,
+                    lastStream: streamData.updated_at ?? '',
+                    viewers: streamData.viewers ?? 0,
+                    videoUrl: streamData.url ?? '',
                 });
-
-                // Execução manual para teste
-                try {
-                    const { data } = await supabase
-                        .from('ngrok_links')
-                        .select('AoVivo')
-                        .limit(1);
-
-                    if (data?.[0]?.AoVivo) {
-                        await Notifications.scheduleNotificationAsync({
-                            content: {
-                                title: 'Teste de Notificação',
-                                body: 'O monitoramento está funcionando corretamente!',
-                            },
-                            trigger: null,
-                        });
-                    }
-                } catch (testError) {
-                    console.warn('Erro no teste:', testError);
-                }
-
-                setIsNotificationEnabled(true);
-                Alert.alert('Monitoramento', 'Notificações ativadas com sucesso');
+            } else {
+                setStreamInfo({
+                    isLive: false,
+                    lastStream: '',
+                    viewers: 0,
+                    videoUrl: '',
+                });
             }
-        } catch (error) {
-            console.error('Erro ao alternar:', error);
-            Alert.alert(
-                'Erro',
-                (error instanceof Error ? error.message : 'Erro desconhecido') || 'Não foi possível alternar o monitoramento',
-                [
-                    { text: 'Configurações', onPress: () => Linking.openSettings() },
-                    { text: 'OK' }
-                ]
-            );
+        } catch (err) {
+            console.error('Erro ao atualizar conteúdo da live:', err);
         }
     };
 
-    // Verificação inicial melhorada
-    useEffect(() => {
-        const checkTaskStatus = async () => {
-            try {
-                const registeredTasks = await TaskManager.getRegisteredTasksAsync();
-                const isRegistered = registeredTasks.some(task => task.taskName === LIVE_STATUS_TASK);
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await atualizarConteudo();
+        setRefreshing(false);
+    };
 
-                // Verificar permissões também
-                const { status } = await Notifications.getPermissionsAsync();
+    const videoId = extractVideoId(streamInfo.videoUrl) || undefined;
 
-                setIsNotificationEnabled(isRegistered && status === 'granted');
-            } catch (error) {
-                console.error('Erro ao verificar status:', error);
-            }
-        };
-
-        const subscription = AppState.addEventListener('change', state => {
-            if (state === 'active') checkTaskStatus();
-        });
-
-        checkTaskStatus();
-        return () => subscription.remove();
-    }, []);
-
-
-    // Configura a orientação da tela
+    // Controle da orientação da tela
     useEffect(() => {
         ScreenOrientation.unlockAsync();
-
         return () => {
             ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
         };
     }, []);
 
-    const handlePlayerError = (error: string) => {
-        console.error('Erro no player:', error);
-        setPlayerError(true);
-    };
+    // Atualiza conteúdo ao montar
+    useEffect(() => {
+        atualizarConteudo();
+    }, []);
 
-    const handlePlayerReady = () => {
-        setPlayerReady(true);
-        setPlayerError(false);
+    // Controle do fullscreen
+    const toggleFullscreen = () => {
+        setIsFullscreen(!isFullscreen);
+        if (!isFullscreen) {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        } else {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
+        }
     };
 
     const handleRetry = () => {
@@ -164,29 +128,58 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
         setPlayerError(false);
     };
 
-    const toggleFullscreen = () => {
-        setIsFullscreen(!isFullscreen);
-        if (!isFullscreen) {
-            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        } else {
-            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
-        }
-    };
-    const [streamInfo, setStreamInfo] = useState({
-        isLive: false,
-        lastStream: "",
-        viewers: 0
-    });
-
+    // Botão para abrir link da live
     const handlePress = () => {
-        const url = ngrokLink || `https://www.youtube.com/watch?v=wACTDUyZEws`;
+        const url = ngrokLink || 'https://www.youtube.com/watch?v=wACTDUyZEws';
         Linking.openURL(url).catch(err => console.error('Erro ao abrir link:', err));
     };
+
+    // Controle notificações (simplificado para foco no player)
+    const toggleBackgroundTask = async () => {
+        try {
+            const tasks = await TaskManager.getRegisteredTasksAsync();
+            const isRegistered = tasks.some(t => t.taskName === LIVE_STATUS_TASK);
+
+            if (isRegistered) {
+                await BackgroundFetch.unregisterTaskAsync(LIVE_STATUS_TASK);
+                setIsNotificationEnabled(false);
+                Alert.alert('Monitoramento', 'Notificações desativadas com sucesso');
+            } else {
+                const { status } = await Notifications.requestPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permissão necessária', 'Por favor, ative as notificações');
+                    return;
+                }
+                await BackgroundFetch.registerTaskAsync(LIVE_STATUS_TASK, {
+                    minimumInterval: 15 * 60,
+                    stopOnTerminate: false,
+                    startOnBoot: true,
+                });
+                setIsNotificationEnabled(true);
+                Alert.alert('Monitoramento', 'Notificações ativadas com sucesso');
+            }
+        } catch (error) {
+            console.error('Erro ao alternar notificações:', error);
+            Alert.alert('Erro', 'Não foi possível alternar o monitoramento');
+        }
+    };
+console.log('streamInfo.videoUrl:', streamInfo.videoUrl);
+console.log('videoId atual:', videoId);
+console.log('Estado da live:', streamInfo.isLive);
+
 
     return (
         <ScrollView
             style={[styles.container, themeStyles.container]}
             contentContainerStyle={styles.scrollContainer}
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    colors={['#0D293E']}
+                    tintColor="#0D293E"
+                />
+            }
         >
             {/* Header com gradiente */}
             <LinearGradient
@@ -223,20 +216,21 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
             <View style={styles.content}>
                 <Text style={[styles.title, themeStyles.text, { fontSize }]}>TRANSMISSÃO AO VIVO</Text>
 
-                {isLiveActive ? (
+                {streamInfo.isLive ? (
                     !playerError ? (
                         <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
                             <YoutubePlayer
+                                key={videoId} 
                                 ref={playerRef}
                                 height={isFullscreen ? width : 220}
                                 play={true}
-                                videoId={videoId} 
+                                videoId={videoId}
                                 onError={e => {
                                     console.error('Erro no player:', e);
                                     setPlayerError(true);
                                 }}
                                 webViewStyle={styles.videoPlayer}
-                                onReady={handlePlayerReady}
+                                onReady={() => setPlayerError(false)}
                             />
                             <TouchableOpacity
                                 style={styles.fullscreenButton}
