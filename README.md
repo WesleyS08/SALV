@@ -123,7 +123,8 @@ A API RESTful desenvolvida para o SALV (Sistema de Alerta Laboratorial com Visã
 
 ## Autores 👨‍💻👨‍💻🎓
 
-- **Davi de Brito Junior**
-- **Wesley Silva dos Santos**
+- [Davi de Brito Junior](https://github.com/DaveBrito)
+- [Maria Luiza Cruvinel dos Santos](https://github.com/Cruvnel)
+- [Wesley Silva dos Santos](https://github.com/WesleyS08)
 
 Este trabalho foi apresentado como requisito parcial para obtenção do título de graduação tecnológica em **Desenvolvimento de Software Multiplataforma** na **Faculdade de Tecnologia Zona Sul – Dom Paulo Evaristo Arns**, sob a orientação do Prof. Dr. Winston Aparecido Andrade.
