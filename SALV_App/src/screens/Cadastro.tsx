@@ -32,17 +32,20 @@ const Cadastro = () => {
     email: false,
     password: false,
     confirmPassword: false,
-    instituicao: false
+    instituicao: false,
+    uid: false,
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+const [cartao, setCartao] = React.useState('');
 
   const nomeRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
   const instituicaoRef = useRef<TextInput>(null);
+  const cartaoRef = useRef(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -146,7 +149,7 @@ const Cadastro = () => {
           Nome: nome,
           Email: email,
           Instituicao: instituicao,
-          UID: uid,
+          UID: cartao,
           Data_Criacao: new Date().toISOString(),
         });
 
@@ -266,258 +269,270 @@ const Cadastro = () => {
     []
   );
 
-return (
-  <SafeAreaView style={{ flex: 1 }}>
-    <AnimatedLinearGradient
-      colors={[color1, color2]}
-      style={[StyleSheet.absoluteFill, { zIndex: -1 }]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    />
-    {particles}
+  return (
+    <SafeAreaView style={{ flex: 1 }}>
+      <AnimatedLinearGradient
+        colors={[color1, color2]}
+        style={[StyleSheet.absoluteFill, { zIndex: -1 }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      {particles}
 
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-    >
-      <ScrollView
-        contentContainerStyle={[styles.contentContainer, { paddingBottom: 50 }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
       >
-        <Image source={require('../images/logo.png')} style={styles.logo} />
-        <Text style={styles.welcomeText}>Criar Conta</Text>
-        <Text style={styles.subtitle}>Preencha os campos abaixo para criar sua conta</Text>
+        <ScrollView
+          contentContainerStyle={[styles.contentContainer, { paddingBottom: 50 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Image source={require('../images/logo.png')} style={styles.logo} />
+          <Text style={styles.welcomeText}>Criar Conta</Text>
+          <Text style={styles.subtitle}>Preencha os campos abaixo para criar sua conta</Text>
 
-        <TextInput
-          ref={nomeRef}
-          style={[styles.input, !nome && errorFields.nome && styles.inputError]}
-          placeholder="Nome Completo"
-          placeholderTextColor="rgba(255,255,255,0.7)"
-          value={nome}
-          onChangeText={setNome}
-          returnKeyType="next"
-          onSubmitEditing={() => instituicaoRef.current?.focus()}
-          blurOnSubmit={false}
-        />
-
-        <Text style={[styles.subtitle, { marginBottom: 16 }]}>
-          O nome que você fornecer aqui será único. Caso outra pessoa já tenha escolhido o mesmo, ela fará parte da mesma instituição.
-        </Text>
-
-        <TextInput
-          ref={instituicaoRef}
-          style={[styles.input, !instituicao && errorFields.instituicao && styles.inputError]}
-          placeholder="Nome da Instituição"
-          placeholderTextColor="rgba(255,255,255,0.7)"
-          value={instituicao}
-          onChangeText={setInstituicao}
-          returnKeyType="next"
-          onSubmitEditing={() => emailRef.current?.focus()}
-          blurOnSubmit={false}
-        />
-
-        <TextInput
-          ref={emailRef}
-          style={[styles.input, (!email || !validateEmail(email)) && errorFields.email && styles.inputError]}
-          placeholder="Email"
-          placeholderTextColor="rgba(255,255,255,0.7)"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-          blurOnSubmit={false}
-        />
-
-        <View style={styles.passwordContainer}>
           <TextInput
-            ref={passwordRef}
-            style={[styles.input, !password && errorFields.password && styles.inputError]}
-            placeholder="Senha"
+            ref={nomeRef}
+            style={[styles.input, !nome && errorFields.nome && styles.inputError]}
+            placeholder="Nome Completo"
             placeholderTextColor="rgba(255,255,255,0.7)"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
+            value={nome}
+            onChangeText={setNome}
             returnKeyType="next"
-            onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+            onSubmitEditing={() => instituicaoRef.current?.focus()}
             blurOnSubmit={false}
           />
-          <TouchableOpacity 
-            style={styles.eyeIcon} 
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.7)" />
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.passwordContainer}>
-          <TextInput
-            ref={confirmPasswordRef}
-            style={[styles.input, (confirmPassword !== password) && errorFields.confirmPassword && styles.inputError]}
-            placeholder="Confirmar Senha"
-            placeholderTextColor="rgba(255,255,255,0.7)"
-            secureTextEntry={!showConfirmPassword}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            returnKeyType="done"
-            onSubmitEditing={handleSignUp}
-          />
-          <TouchableOpacity 
-            style={styles.eyeIcon} 
-            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-          >
-            <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.7)" />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={styles.buttonContainer}
-          onPress={handleSignUp}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>Criar Conta</Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Já tem uma conta?</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-            <Text style={styles.loginLink}> Faça login</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.footerText}>
-          Ao criar uma conta, você concorda com os{' '}
-          <Text style={styles.linkText} onPress={() => setModalVisible(true)}>
-            Termos e Condições
-          </Text>{' '}
-          e a{' '}
-          <Text style={styles.linkText} onPress={() => setPrivacyModalVisible(true)}>
-            Política de Privacidade
+          <Text style={[styles.subtitle, { marginBottom: 16 }]}>
+            Seja criativo com o nome fornecido, pois caso outra pessoa use o mesmo, vocês farão parte da mesma equipe.
           </Text>
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
 
-    {toastMessage && (
-      <CustomToast
-        message={toastMessage}
-        duration={5000}
-        onClose={() => setToastMessage(null)}
-      />
-    )}
 
-    {/* Modals */}
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={modalVisible}
-      onRequestClose={() => setModalVisible(false)}
-    >
-      <View style={styles.modalContent}>
-        <View style={styles.modalView}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Termos e Condições</Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+          <TextInput
+            ref={instituicaoRef}
+            style={[styles.input, !instituicao && errorFields.instituicao && styles.inputError]}
+            placeholder="Nome da Instituição"
+            placeholderTextColor="rgba(255,255,255,0.7)"
+            value={instituicao}
+            onChangeText={setInstituicao}
+            returnKeyType="next"
+            onSubmitEditing={() => emailRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+         <TextInput
+  ref={cartaoRef}
+  style={[styles.input, !cartao && errorFields.uid && styles.inputError]}
+  placeholder="UID do Cartão RFID"
+  placeholderTextColor="rgba(255,255,255,0.7)"
+  value={cartao}
+  onChangeText={setCartao}   
+  editable={true}
+  returnKeyType="next"
+  onSubmitEditing={() => emailRef.current?.focus()}
+  blurOnSubmit={false}
+/>
+          <TextInput
+            ref={emailRef}
+            style={[styles.input, (!email || !validateEmail(email)) && errorFields.email && styles.inputError]}
+            placeholder="Email"
+            placeholderTextColor="rgba(255,255,255,0.7)"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+
+          <View style={styles.passwordContainer}>
+            <TextInput
+              ref={passwordRef}
+              style={[styles.input, !password && errorFields.password && styles.inputError]}
+              placeholder="Senha"
+              placeholderTextColor="rgba(255,255,255,0.7)"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              returnKeyType="next"
+              onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+              blurOnSubmit={false}
+            />
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.7)" />
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.modalBody}>
-            <Text style={styles.sectionTitle}>1. Aceitação dos Termos</Text>
-            <Text style={styles.listItem}>• Ao usar o SALV, você concorda com estes Termos</Text>
-            <Text style={styles.listItem}>• Versão atualizada em: 01/01/2024</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>2. Funcionalidades</Text>
-            <Text style={styles.listItem}>- Monitoramento via sensores/câmeras</Text>
-            <Text style={styles.listItem}>- Autenticação RFID/biometria</Text>
-            <Text style={styles.listItem}>- Gravação automática de eventos</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>3. Responsabilidades</Text>
-            <Text style={styles.listItem}>• Manter hardware funcional (ESP32, câmeras)</Text>
-            <Text style={styles.listItem}>• Configurar corretamente MQTT/APIs</Text>
-            <Text style={styles.listItem}>• Não usar para atividades ilegais</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>4. Limitações</Text>
-            <Text style={styles.listItem}>- Não cobrimos falhas de hardware</Text>
-            <Text style={styles.listItem}>- Isenção por uso indevido</Text>
-            <Text style={styles.listItem}>- Sujeito a disponibilidade de serviços em nuvem</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>5. Contato</Text>
-            <Text style={styles.contactInfo}>suporte.salv@dominio.com</Text>
-            <Text style={styles.contactInfo}>+55 (11) 98888-8888 | São Paulo/SP</Text>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
 
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={privacyModalVisible}
-      onRequestClose={() => setPrivacyModalVisible(false)}
-    >
-      <View style={styles.modalContent}>
-        <View style={styles.modalView}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Política de Privacidade</Text>
-            <TouchableOpacity onPress={() => setPrivacyModalVisible(false)}>
-              <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              ref={confirmPasswordRef}
+              style={[styles.input, (confirmPassword !== password) && errorFields.confirmPassword && styles.inputError]}
+              placeholder="Confirmar Senha"
+              placeholderTextColor="rgba(255,255,255,0.7)"
+              secureTextEntry={!showConfirmPassword}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleSignUp}
+            />
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color="rgba(255,255,255,0.7)" />
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.scrollArea}>
-            <Text style={styles.sectionTitle}>1. Dados Coletados</Text>
-            <Text style={styles.listItem}>• Biometria facial (processamento local)</Text>
-            <Text style={styles.listItem}>• Registros de acesso RFID</Text>
-            <Text style={styles.listItem}>• Metadados técnicos (IP, horários)</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>2. Compartilhamento</Text>
-            <Text style={styles.listItem}>- Supabase: armazenamento de vídeos</Text>
-            <Text style={styles.listItem}>- Firebase: notificações push</Text>
-            <Text style={styles.listItem}>- APIs REST: integração de sistemas</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>3. Segurança</Text>
-            <Text style={styles.listItem}>• Criptografia AES-256</Text>
-            <Text style={styles.listItem}>• Autenticação em duas etapas</Text>
-            <Text style={styles.listItem}>• Auditorias trimestrais</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>4. Direitos</Text>
-            <Text style={styles.listItem}>- Solicitar exclusão de dados</Text>
-            <Text style={styles.listItem}>- Acessar histórico completo</Text>
-            <Text style={styles.listItem}>- Revogar permissões</Text>
-            <View style={styles.divider} />
-            <Text style={styles.sectionTitle}>5. Atualizações</Text>
-            <Text style={styles.contactInfo}>Versão vigente: 1.0.0 (Maio/2025)</Text>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
 
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={errorModalVisible}
-      onRequestClose={() => setErrorModalVisible(false)}
-    >
-      <View style={styles.modalContent}>
-        <View style={styles.modalView}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Erro no Cadastro</Text>
-            <TouchableOpacity onPress={() => setErrorModalVisible(false)}>
-              <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+          <TouchableOpacity
+            style={styles.buttonContainer}
+            onPress={handleSignUp}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Criar Conta</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.loginContainer}>
+            <Text style={styles.loginText}>Já tem uma conta?</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.loginLink}> Faça login</Text>
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.footerText}>
+            Ao criar uma conta, você concorda com os{' '}
+            <Text style={styles.linkText} onPress={() => setModalVisible(true)}>
+              Termos e Condições
+            </Text>{' '}
+            e a{' '}
+            <Text style={styles.linkText} onPress={() => setPrivacyModalVisible(true)}>
+              Política de Privacidade
+            </Text>
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {toastMessage && (
+        <CustomToast
+          message={toastMessage}
+          duration={5000}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
+
+      {/* Modals */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContent}>
+          <View style={styles.modalView}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Termos e Condições</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.sectionTitle}>1. Aceitação dos Termos</Text>
+              <Text style={styles.listItem}>• Ao usar o SALV, você concorda com estes Termos</Text>
+              <Text style={styles.listItem}>• Versão atualizada em: 01/01/2024</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>2. Funcionalidades</Text>
+              <Text style={styles.listItem}>- Monitoramento via sensores/câmeras</Text>
+              <Text style={styles.listItem}>- Autenticação RFID/biometria</Text>
+              <Text style={styles.listItem}>- Gravação automática de eventos</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>3. Responsabilidades</Text>
+              <Text style={styles.listItem}>• Manter hardware funcional (ESP32, câmeras)</Text>
+              <Text style={styles.listItem}>• Configurar corretamente MQTT/APIs</Text>
+              <Text style={styles.listItem}>• Não usar para atividades ilegais</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>4. Limitações</Text>
+              <Text style={styles.listItem}>- Não cobrimos falhas de hardware</Text>
+              <Text style={styles.listItem}>- Isenção por uso indevido</Text>
+              <Text style={styles.listItem}>- Sujeito a disponibilidade de serviços em nuvem</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>5. Contato</Text>
+              <Text style={styles.contactInfo}>suporte.salv@dominio.com</Text>
+              <Text style={styles.contactInfo}>+55 (11) 98888-8888 | São Paulo/SP</Text>
+            </ScrollView>
+          </View>
         </View>
-      </View>
-    </Modal>
-  </SafeAreaView>
-);
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={privacyModalVisible}
+        onRequestClose={() => setPrivacyModalVisible(false)}
+      >
+        <View style={styles.modalContent}>
+          <View style={styles.modalView}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Política de Privacidade</Text>
+              <TouchableOpacity onPress={() => setPrivacyModalVisible(false)}>
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.scrollArea}>
+              <Text style={styles.sectionTitle}>1. Dados Coletados</Text>
+              <Text style={styles.listItem}>• Biometria facial (processamento local)</Text>
+              <Text style={styles.listItem}>• Registros de acesso RFID</Text>
+              <Text style={styles.listItem}>• Metadados técnicos (IP, horários)</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>2. Compartilhamento</Text>
+              <Text style={styles.listItem}>- Supabase: armazenamento de vídeos</Text>
+              <Text style={styles.listItem}>- Firebase: notificações push</Text>
+              <Text style={styles.listItem}>- APIs REST: integração de sistemas</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>3. Segurança</Text>
+              <Text style={styles.listItem}>• Criptografia AES-256</Text>
+              <Text style={styles.listItem}>• Autenticação em duas etapas</Text>
+              <Text style={styles.listItem}>• Auditorias trimestrais</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>4. Direitos</Text>
+              <Text style={styles.listItem}>- Solicitar exclusão de dados</Text>
+              <Text style={styles.listItem}>- Acessar histórico completo</Text>
+              <Text style={styles.listItem}>- Revogar permissões</Text>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>5. Atualizações</Text>
+              <Text style={styles.contactInfo}>Versão vigente: 1.0.0 (Maio/2025)</Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={errorModalVisible}
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View style={styles.modalContent}>
+          <View style={styles.modalView}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Erro no Cadastro</Text>
+              <TouchableOpacity onPress={() => setErrorModalVisible(false)}>
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
 };
 interface ParticleProps {
   size: number;
