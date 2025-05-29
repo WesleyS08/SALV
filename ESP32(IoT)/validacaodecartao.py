@@ -5,6 +5,7 @@ from PIL import Image, ImageTk
 import qrcode
 from io import BytesIO
 from threading import Thread
+import re
 
 # Configurações da porta serial
 PORTA_SERIAL = 'COM5'
@@ -47,9 +48,13 @@ def ler_serial():
         with serial.Serial(PORTA_SERIAL, BAUD_RATE, timeout=1) as ser:
             while True:
                 linha = ser.readline().decode('utf-8').strip()
-                if linha:
-                    id_label.config(text=linha)
-                    qr_img = gerar_qrcode(linha)
+
+                # Tenta extrair apenas o ID puro usando expressão regular
+                match = re.search(r'(\b[0-9A-Fa-f]{8,}\b)', linha)
+                if match:
+                    id_puro = match.group(1)
+                    id_label.config(text=id_puro)
+                    qr_img = gerar_qrcode(id_puro)
                     qr_label.config(image=qr_img)
                     qr_label.image = qr_img
     except serial.SerialException as e:
