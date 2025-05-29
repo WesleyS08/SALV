@@ -12,6 +12,7 @@
   - [Software e Backend](#software-e-backend)
   - [Protocolos de Automação](#protocolos-de-automação)
   - [Comunicação e Protocolos](#comunicação-e-protocolos)
+- [ESP32](#esp32)
 - [Autores](#autores-)
 
 ---
@@ -119,7 +120,78 @@ A API RESTful desenvolvida para o SALV (Sistema de Alerta Laboratorial com Visã
 | Escalabilidade e Manutenção | Com uma arquitetura modular, a API é facilmente escalável, facilitando a adição de novas funcionalidades e manutenção do sistema para atender às necessidades dos usuários.|
 
 ---
+## ESP32 
+Sendo uma das principais partes do sistema, este módulo requer atenção especial quanto ao seu funcionamento. Recomendamos fortemente a consulta aos arquivos no repositório [ESP32(IoT)](https://github.com/WesleyS08/SALV/tree/main/ESP32(IoT)), onde estão disponíveis os três principais arquivos:
 
+- **ESP32 - Validação de usuários**
+- **endereco_do_lcd**
+- **LeitorDeCartao**
+
+Além desses, há arquivos auxiliares, como o `validacao_de_usuarios.py`, que será citado posteriormente.
+
+Para o desenvolvimento e upload do código, é necessário o uso da IDE Arduino.
+
+### ESP32 - Validação de usuários
+
+Este é o principal código do IoT, responsável pelo controle dos sensores e pelo envio de alertas via MQTT. É importante destacar que, caso a montagem do hardware seja diferente da descrita na documentação deste projeto, será necessário ajustar os seguintes parâmetros no código:
+
+```cpp
+#define PIR_PIN 4
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+MFRC522DriverPinSimple ss_pin(5);
+MFRC522DriverSPI driver{ ss_pin };
+MFRC522 mfrc522{ driver };
+```
+Além disso, é imprescindível alterar as credenciais de rede e outras configurações, como mostrado a seguir:
+```cpp
+// APIs e configurações de rede
+const char* API_Cartao = "https://[REDACTED]/verificar-cartao";
+const char* Api_registraEntrada = "https://[REDACTED]/registro-entrada";
+const char* Api_registraSaida = "https://[REDACTED]/registro-acesso";
+const char* ssid = "[REDACTED_SSID]";
+const char* password = "[REDACTED_PASSWORD]";
+const char* mqtt_server = "[REDACTED_MQTT_SERVER]";
+const int mqtt_port = 8883;
+const char* mqtt_user = "[REDACTED_MQTT_USER]";
+const char* mqtt_password = "[REDACTED_MQTT_PASS]";
+const char* pc_mac_str = "[REDACTED_MAC]";
+uint8_t mac_address[6];
+const int wol_port = 9;
+
+```
+Os demais códigos disponíveis são necessários para auxiliar na montagem e operação do sistema.
+
+---
+
+### endereco_do_lcd
+
+Este código tem como objetivo identificar e exibir o endereço I2C do display LCD conectado ao ESP32. Isso é importante para garantir que o endereço configurado no código principal corresponda ao endereço físico do dispositivo, evitando falhas na comunicação.
+
+A execução desse programa auxilia o usuário a encontrar o endereço correto do LCD, que pode variar dependendo do modelo ou fabricante, além de ajudar a identificar falhas.
+
+Com esse programa, o usuário deve observar no monitor serial o endereço do LCD, que poderá ser utilizado no código principal para configurar corretamente o display:
+
+```cpp
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+```
+onde `0x27` deve ser substituído pelo endereço encontrado, caso seja diferente.
+
+### LeitorDeCartao
+
+Este módulo é responsável pela interface com o leitor RFID MFRC522. Ele gerencia a leitura dos cartões RFID, exibindo o ID do cartão para o usuário, facilitando assim a identificação e o cadastro no aplicativo.
+
+É fundamental assegurar que o pino SS (Slave Select) esteja corretamente configurado, conforme a placa utilizada (por exemplo, pino 5):
+
+```cpp
+MFRC522DriverPinSimple ss_pin(5);
+MFRC522DriverSPI driver{ ss_pin };
+MFRC522 mfrc522{ driver };
+```
+Ressalta-se que o código considera que o ESP32 estará conectado ao `pino 5`.
+
+Os demais códigos, como `validacaodecartao.py` e seu executável, disponíveis na pasta dist, têm como objetivo proporcionar uma interface mais amigável para o usuário.
+
+--- 
 
 ## Autores 👨‍💻👨‍💻🎓
 
