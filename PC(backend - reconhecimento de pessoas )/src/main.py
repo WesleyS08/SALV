@@ -53,7 +53,7 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Configura OBS
-OBS_WS_HOST = "192.168.1.6"
+OBS_WS_HOST = "192.168.1.2"
 OBS_WS_PORT = 4455
 OBS_WS_PASSWORD = os.getenv("OBS_WS_PASSWORD")
 NOME_CENA = "Deteccao"
@@ -484,6 +484,7 @@ def criar_broadcast_youtube(youtube):
             "contentDetails": {
                 "enableAutoStart": True,
                 "enableAutoStop": True,
+                "enableDvr": True,
             }
         }
 
@@ -1177,99 +1178,7 @@ def on_mqtt_message(client, userdata, msg):
             pass
 
 
-def load_config():
-    global OBS_WS_HOST, OBS_WS_PORT, OBS_WS_PASSWORD, NOME_CENA, FONTE_VIDEO
-    global IP_WEBCAM_URL, IP_WEBCAM_STATUS, IP_WEBCAM_USER, IP_WEBCAM_PASS
-    global MQTT_CLUSTER_URL, MQTT_USERNAME, MQTT_PASSWORD
-    global YOUTUBE_STREAM_KEY, SUPABASE_URL, SUPABASE_KEY, usuario_id
-    
-    # Caminho para o arquivo de configuração
-    config_file = Path(__file__).parent / "security_config.json"
-    
-    # Valores padrão
-    default_config = {
-        "OBS_WS_HOST": "192.168.1.6",
-        "OBS_WS_PORT": 4455,
-        "OBS_WS_PASSWORD": os.getenv("OBS_WS_PASSWORD", ""),
-        "NOME_CENA": "Detecção",
-        "FONTE_VIDEO": "Camera_Seguranca",
-        "IP_WEBCAM_URL": "http://192.168.0.167:8080/video",
-        "IP_WEBCAM_STATUS": "http://192.168.0.167:8080/status.json",
-        "IP_WEBCAM_USER": "",
-        "IP_WEBCAM_PASS": "",
-        "MQTT_CLUSTER_URL": os.getenv("MQTT_CLUSTER_URL", ""),
-        "MQTT_USERNAME": os.getenv("MQTT_USERNAME", ""),
-        "MQTT_PASSWORD": os.getenv("MQTT_PASSWORD", ""),
-        "YOUTUBE_STREAM_KEY": os.getenv("YOUTUBE_STREAM_KEY", ""),
-        "SUPABASE_URL": os.getenv("SUPABASE_URL", ""),
-        "SUPABASE_KEY": os.getenv("SUPABASE_KEY", ""),
 
-    }
-    
-    try:
-        # Verifica se o arquivo de configuração existe
-        if not config_file.exists():
-            print("⚠️ Arquivo de configuração não encontrado. Criando com valores padrão...")
-            with open(config_file, 'w') as f:
-                json.dump(default_config, f, indent=4)
-            config = default_config
-        else:
-            # Carrega o arquivo existente
-            with open(config_file, 'r') as f:
-                config = json.load(f)
-            
-            # Verifica se todas as chaves necessárias existem
-            for key in default_config.keys():
-                if key not in config:
-                    print(f"⚠️ Chave '{key}' faltando no arquivo de configuração. Usando valor padrão.")
-                    config[key] = default_config[key]
-            
-            # Atualiza o arquivo com quaisquer chaves faltantes
-            with open(config_file, 'w') as f:
-                json.dump(config, f, indent=4)
-        
-        # Atualiza variáveis globais
-        OBS_WS_HOST = config["OBS_WS_HOST"]
-        OBS_WS_PORT = int(config["OBS_WS_PORT"])
-        OBS_WS_PASSWORD = config["OBS_WS_PASSWORD"]
-        NOME_CENA = config["NOME_CENA"]
-        FONTE_VIDEO = config["FONTE_VIDEO"]
-        IP_WEBCAM_URL = config["IP_WEBCAM_URL"]
-        IP_WEBCAM_STATUS = config["IP_WEBCAM_STATUS"]
-        IP_WEBCAM_USER = config["IP_WEBCAM_USER"]
-        IP_WEBCAM_PASS = config["IP_WEBCAM_PASS"]
-        MQTT_CLUSTER_URL = config["MQTT_CLUSTER_URL"]
-        MQTT_USERNAME = config["MQTT_USERNAME"]
-        MQTT_PASSWORD = config["MQTT_PASSWORD"]
-        YOUTUBE_STREAM_KEY = config["YOUTUBE_STREAM_KEY"]
-        SUPABASE_URL = config["SUPABASE_URL"]
-        SUPABASE_KEY = config["SUPABASE_KEY"]
-        
-    
-        
-        print("✅ Configurações carregadas com sucesso:")
-        print(f"• OBS: {OBS_WS_HOST}:{OBS_WS_PORT}")
-        print(f"• Câmera: {IP_WEBCAM_URL if IP_WEBCAM_URL else 'Câmera local'}")
-        print(f"• Usuário: {'Configurado' if usuario_id else 'Não configurado'}")
-        
-        return True
-        
-    except json.JSONDecodeError:
-        print("❌ Erro ao ler arquivo de configuração (formato inválido). Usando valores padrão.")
-        # Carrega valores padrão
-        for key, value in default_config.items():
-            globals()[key] = value
-        usuario_id = None
-        return False
-        
-    except Exception as e:
-        print(f"❌ Erro inesperado ao carregar configurações: {str(e)}. Usando valores padrão.")
-        # Carrega valores padrão
-        for key, value in default_config.items():
-            globals()[key] = value
-        usuario_id = None
-        return False
-    
 def main():
     # Configuração inicial
     print("\n" + "="*50)
@@ -1278,7 +1187,6 @@ def main():
     
     # 1. Verificar e carregar configurações
     try:
-        load_config()  # Função que você já tem para carregar do JSON
         print("✅ Configurações carregadas com sucesso")
     except Exception as e:
         print(f"⚠️ Erro ao carregar configurações: {e}")
