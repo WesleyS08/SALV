@@ -153,94 +153,100 @@ const particles = useMemo(
     }
   };
 
-  // Função principal de login
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setToastMessage('Email e senha são obrigatórios');
-      return;
+useEffect(() => {
+  if (modalMessage) {
+    console.log('Mensagem de erro atualizada:', modalMessage);
+  }
+}, [modalMessage]);
+
+// Função principal de login
+const handleLogin = async () => {
+  if (!email || !password) {
+    setToastMessage('Email e senha são obrigatórios');
+    return;
+  }
+
+  if (!validateEmail(email)) {
+    setToastMessage('Formato de email inválido');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const auth = getAuth(app);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const { uid, email: userEmail } = userCredential.user;
+    console.log('Usuário logado com sucesso:', uid, userEmail);
+    // 🔒 Checar se o usuário está desativado no Supabase
+    const { data, error } = await supabase
+      .from('Tb_Usuarios')
+      .select('Data_Desativacao')
+      .eq('ID_Usuarios', uid)
+      .single();
+
+    if (error || !data) {
+      throw new Error("Não foi possível verificar o status da conta.");
     }
-  
-    if (!validateEmail(email)) {
-      setToastMessage('Formato de email inválido');
-      return;
-    }
-  
-    setLoading(true);
-  
-    try {
-      const auth = getAuth(app);
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const { uid, email: userEmail } = userCredential.user;
-  
-      // 🔒 Checar se o usuário está desativado no Supabase
-      const { data, error } = await supabase
-        .from('Tb_Usuarios')
-        .select('Data_Desativacao')
-        .eq('UID', uid)
-        .single();
-  
-      if (error || !data) {
-        throw new Error("Não foi possível verificar o status da conta.");
-      }
-  
-      if (data.Data_Desativacao) {
-        await signOut(auth);
-        setModalMessage("Sua conta foi desativada. Entre em contato com o suporte.");
-        setErrorModalVisible(true);
-        return;
-      }
-  
-      // 🔐 Salvar biometria se estiver habilitado
-      if (enableBiometric) {
-        try {
-          await saveCredentialsForBiometric(email, password);
-          setToastMessage('Login salvo para biometria!');
-        } catch (error) {
-          console.warn('Biometria não configurada:', error);
-        }
-      }
-  
-      // ✅ Navegar para a Home
-      navigation.reset({
-        index: 0,
-        routes: [{
-          name: 'Home',
-          params: { user: { id: uid, email: userEmail } }
-        }],
-      });
-  
-    } catch (error: any) {
-      let errorMessage = 'Erro ao fazer login';
-  
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/invalid-credential':
-            errorMessage = 'Credenciais inválidas';
-            break;
-          case 'auth/user-not-found':
-            errorMessage = 'Usuário não encontrado';
-            break;
-          case 'auth/wrong-password':
-            errorMessage = 'Senha incorreta';
-            break;
-          case 'auth/too-many-requests':
-            errorMessage = 'Muitas tentativas. Tente mais tarde';
-            break;
-          case 'auth/user-disabled':
-            errorMessage = 'Conta desativada';
-            break;
-          default:
-            errorMessage = error.message || 'Erro desconhecido';
-        }
-      }
-  
-      setModalMessage(errorMessage);
+
+    if (data.Data_Desativacao) {
+      await signOut(auth);
+      setModalMessage("Sua conta foi desativada. Entre em contato com o suporte.");
       setErrorModalVisible(true);
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
-  
+
+    // 🔐 Salvar biometria se estiver habilitado
+    if (enableBiometric) {
+      try {
+        await saveCredentialsForBiometric(email, password);
+        setToastMessage('Login salvo para biometria!');
+      } catch (error) {
+        console.warn('Biometria não configurada:', error);
+      }
+    }
+
+    // ✅ Navegar para a Home
+    navigation.reset({
+      index: 0,
+      routes: [{
+        name: 'Home',
+        params: { user: { id: uid, email: userEmail } }
+      }],
+    });
+
+  } catch (error: any) {
+    let errorMessage = '';
+
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/invalid-credential':
+          errorMessage = 'Credenciais inválidas';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'Usuário não encontrado';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Senha incorreta';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Muitas tentativas. Tente mais tarde';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'Conta desativada';
+          break;
+        default:
+          errorMessage = error.message || 'Erro desconhecido';
+      }
+    }
+
+    setModalMessage(errorMessage);
+    setErrorModalVisible(true);
+  } finally {
+    setLoading(false);
+  }
+};
+
   return (
     <View style={styles.container}>
       {toastMessage && (
@@ -383,6 +389,7 @@ const particles = useMemo(
             <Ionicons name="close-circle" size={50} color="#FF6B6B" />
             <Text style={styles.modalTitle}>Ops!</Text>
             <Text style={styles.modalText}>{modalMessage}</Text>
+            
             <TouchableOpacity
               style={[styles.modalButton, styles.modalErrorButton]}
               onPress={() => setErrorModalVisible(false)}
