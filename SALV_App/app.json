@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SALV_App",
-    "slug": "SALV_App",
+    "slug": "SALV_App_",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/img/icon.png",
