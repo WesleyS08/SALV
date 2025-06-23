@@ -53,7 +53,7 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Configura OBS
-OBS_WS_HOST = "192.168.1.6"
+OBS_WS_HOST = "192.168.1.2"
 OBS_WS_PORT = 4455
 OBS_WS_PASSWORD = os.getenv("OBS_WS_PASSWORD")
 NOME_CENA = "Deteccao"
@@ -484,7 +484,11 @@ def criar_broadcast_youtube(youtube):
             "contentDetails": {
                 "enableAutoStart": True,
                 "enableAutoStop": True,
+
                 "enableEmbed": True  # Permite incorporação
+
+                "enableDvr": True,
+
             }
         }
 
@@ -619,12 +623,19 @@ def debug_stream_settings():
         print(f"Erro ao verificar configurações: {e}")
 
 from datetime import datetime
-
 def parar_transmissao(obs_client):
     global usuario_id
     try:
         # 1. Verificar status da transmissão
         status = obs_client.get_stream_status()
+
+        if status is None:
+            print("❌ Falha: status da transmissão retornou None")
+            return False
+
+        if not hasattr(status, 'output_active'):
+            print("❌ Falha: status da transmissão não contém 'output_active'")
+            return False
         
         if status.output_active:
             # 2. Parar a transmissão
@@ -633,7 +644,6 @@ def parar_transmissao(obs_client):
             
             # 3. Atualizar o último registro no banco de dados
             try:
-                # Encontrar o último registro do usuário
                 last_record = supabase.table('ngrok_links')\
                     .select('ID')\
                     .eq('ID_Usuarios', usuario_id)\
@@ -805,19 +815,26 @@ def enviar_video_supabase(caminho_local):
 def processar_deteccoes():
     global grava, transmite, latest_frame
 
+    # Obtém câmeras disponíveis
+    cameras_disponiveis = list_cameras()
+    
+    if not cameras_disponiveis:
+        print("❌ Nenhuma câmera disponível!")
+        return
+
+    indice_camera = cameras_disponiveis[0] 
+
     # Inicializa captura de vídeo
-    cap = None
-    for i in range(6):  # Tenta até 6 dispositivos de câmera diferentes
-        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        
-        if cap.isOpened():
-            print(f"✅ Câmera local {i} aberta com sucesso!")
-            break
-        else:
-            print(f"❌ Câmera local {i} não disponível!")
-            cap.release()
+    cap = cv2.VideoCapture(indice_camera, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    if cap.isOpened():
+        print(f"✅ Câmera local {indice_camera} aberta com sucesso!")
+    else:
+        print(f"❌ Falha ao abrir a câmera {indice_camera}")
+        cap.release()
+        return
 
     # Fallback para IP Webcam se nenhuma câmera local funcionar
     if cap is None or not cap.isOpened():
@@ -1015,30 +1032,28 @@ def salvar_informacoes_filmagem(inicio, fim, duracao, url_video, caminho_video_l
         print("❌ Erro ao salvar filmagem:", str(e))
 
 
-def listar_webcams_disponiveis():
-    """Lista dispositivos com foco na webcam virtual"""
+def list_cameras():
     index = 0
-    dispositivos = []
-    
-    # Primeiro verifica a webcam virtual (prioridade)
-    virtual_cams = ["OBS Virtual Camera", "Python Virtual Camera", "Virtual Camera"]
-    for name in virtual_cams:
-        dispositivos.append((-1, name))  # -1 indica que é virtual
-    
-    # Depois verifica câmeras físicas
+    arr = []
     while True:
-        cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
-        if not cap.read()[0]:
+        cap = cv2.VideoCapture(index)  # sem cv2.CAP_DSHOW
+        if not cap.isOpened():
+            cap.release()
             break
+
+        ret, frame = cap.read()
+        if ret and frame is not None and frame.size > 0:
+            arr.append(index)
+        else:
+            cap.release()
+            break
+
         cap.release()
-        dispositivos.append((index, f"Câmera {index} (Física)"))
         index += 1
-    
-    print("Dispositivos encontrados:")
-    for idx, nome in dispositivos:
-        print(f"  {idx}: {nome}")
-    
-    return dispositivos
+    return arr
+
+print("Câmeras disponíveis:", list_cameras())
+
 
 
 # Função de autenticação para o YouTube
@@ -1178,99 +1193,7 @@ def on_mqtt_message(client, userdata, msg):
             pass
 
 
-def load_config():
-    global OBS_WS_HOST, OBS_WS_PORT, OBS_WS_PASSWORD, NOME_CENA, FONTE_VIDEO
-    global IP_WEBCAM_URL, IP_WEBCAM_STATUS, IP_WEBCAM_USER, IP_WEBCAM_PASS
-    global MQTT_CLUSTER_URL, MQTT_USERNAME, MQTT_PASSWORD
-    global YOUTUBE_STREAM_KEY, SUPABASE_URL, SUPABASE_KEY, usuario_id
-    
-    # Caminho para o arquivo de configuração
-    config_file = Path(__file__).parent / "security_config.json"
-    
-    # Valores padrão
-    default_config = {
-        "OBS_WS_HOST": "192.168.1.6",
-        "OBS_WS_PORT": 4455,
-        "OBS_WS_PASSWORD": os.getenv("OBS_WS_PASSWORD", ""),
-        "NOME_CENA": "Detecção",
-        "FONTE_VIDEO": "Camera_Seguranca",
-        "IP_WEBCAM_URL": "http://192.168.0.167:8080/video",
-        "IP_WEBCAM_STATUS": "http://192.168.0.167:8080/status.json",
-        "IP_WEBCAM_USER": "",
-        "IP_WEBCAM_PASS": "",
-        "MQTT_CLUSTER_URL": os.getenv("MQTT_CLUSTER_URL", ""),
-        "MQTT_USERNAME": os.getenv("MQTT_USERNAME", ""),
-        "MQTT_PASSWORD": os.getenv("MQTT_PASSWORD", ""),
-        "YOUTUBE_STREAM_KEY": os.getenv("YOUTUBE_STREAM_KEY", ""),
-        "SUPABASE_URL": os.getenv("SUPABASE_URL", ""),
-        "SUPABASE_KEY": os.getenv("SUPABASE_KEY", ""),
 
-    }
-    
-    try:
-        # Verifica se o arquivo de configuração existe
-        if not config_file.exists():
-            print("⚠️ Arquivo de configuração não encontrado. Criando com valores padrão...")
-            with open(config_file, 'w') as f:
-                json.dump(default_config, f, indent=4)
-            config = default_config
-        else:
-            # Carrega o arquivo existente
-            with open(config_file, 'r') as f:
-                config = json.load(f)
-            
-            # Verifica se todas as chaves necessárias existem
-            for key in default_config.keys():
-                if key not in config:
-                    print(f"⚠️ Chave '{key}' faltando no arquivo de configuração. Usando valor padrão.")
-                    config[key] = default_config[key]
-            
-            # Atualiza o arquivo com quaisquer chaves faltantes
-            with open(config_file, 'w') as f:
-                json.dump(config, f, indent=4)
-        
-        # Atualiza variáveis globais
-        OBS_WS_HOST = config["OBS_WS_HOST"]
-        OBS_WS_PORT = int(config["OBS_WS_PORT"])
-        OBS_WS_PASSWORD = config["OBS_WS_PASSWORD"]
-        NOME_CENA = config["NOME_CENA"]
-        FONTE_VIDEO = config["FONTE_VIDEO"]
-        IP_WEBCAM_URL = config["IP_WEBCAM_URL"]
-        IP_WEBCAM_STATUS = config["IP_WEBCAM_STATUS"]
-        IP_WEBCAM_USER = config["IP_WEBCAM_USER"]
-        IP_WEBCAM_PASS = config["IP_WEBCAM_PASS"]
-        MQTT_CLUSTER_URL = config["MQTT_CLUSTER_URL"]
-        MQTT_USERNAME = config["MQTT_USERNAME"]
-        MQTT_PASSWORD = config["MQTT_PASSWORD"]
-        YOUTUBE_STREAM_KEY = config["YOUTUBE_STREAM_KEY"]
-        SUPABASE_URL = config["SUPABASE_URL"]
-        SUPABASE_KEY = config["SUPABASE_KEY"]
-        
-    
-        
-        print("✅ Configurações carregadas com sucesso:")
-        print(f"• OBS: {OBS_WS_HOST}:{OBS_WS_PORT}")
-        print(f"• Câmera: {IP_WEBCAM_URL if IP_WEBCAM_URL else 'Câmera local'}")
-        print(f"• Usuário: {'Configurado' if usuario_id else 'Não configurado'}")
-        
-        return True
-        
-    except json.JSONDecodeError:
-        print("❌ Erro ao ler arquivo de configuração (formato inválido). Usando valores padrão.")
-        # Carrega valores padrão
-        for key, value in default_config.items():
-            globals()[key] = value
-        usuario_id = None
-        return False
-        
-    except Exception as e:
-        print(f"❌ Erro inesperado ao carregar configurações: {str(e)}. Usando valores padrão.")
-        # Carrega valores padrão
-        for key, value in default_config.items():
-            globals()[key] = value
-        usuario_id = None
-        return False
-    
 def main():
     # Configuração inicial
     print("\n" + "="*50)
@@ -1279,7 +1202,6 @@ def main():
     
     # 1. Verificar e carregar configurações
     try:
-        load_config()  # Função que você já tem para carregar do JSON
         print("✅ Configurações carregadas com sucesso")
     except Exception as e:
         print(f"⚠️ Erro ao carregar configurações: {e}")
@@ -1340,7 +1262,7 @@ def main():
     print("\n[4/5] Iniciando servidor Flask...")
     flask_thread = threading.Thread(target=iniciar_servidor_flask, daemon=True)
     flask_thread.start()
-    print("✅ Servidor Flask iniciado em http://localhost:5000")
+    print("✅ Servidor Flask iniciado em http://localhost:5000/video_feed")
 
     print("="*50 + "\n")
     print("\n[5/5] Iniciando conta do google...")
