@@ -285,7 +285,10 @@ Sendo uma das principais partes do sistema, este módulo requer atenção especi
 ### 📂 Estrutura de Arquivos
 ```bash
 ESP32(IoT)/
-├── ESP32_Validacao/      # Código principal
+├── ESP32_Validacao/             # Código principal
+│   ├── SALV/                    # Subpasta para códigos-fonte
+│   │   └── SALV.ino
+│   ├── data/                
 ├── LeitorDeCartao/       # Módulo RFID
 ├── endereco_do_lcd/      # Utilitário I2C
 ```
