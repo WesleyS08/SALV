@@ -25,7 +25,7 @@ const Cadastro = () => {
   const [modalMessage, setModalMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const colorAnim = new Animated.Value(0);
+  const colorAnim = useRef(new Animated.Value(0)).current;
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorFields, setErrorFields] = useState({
     nome: false,
@@ -38,14 +38,14 @@ const Cadastro = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [cartao, setCartao] = React.useState('');
+  const [cartao, setCartao] = useState('');
 
   const nomeRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
   const instituicaoRef = useRef<TextInput>(null);
-  const cartaoRef = useRef(null);
+  const cartaoRef = useRef<TextInput>(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -71,18 +71,20 @@ const Cadastro = () => {
     inputRange: [0, 0.5, 1],
     outputRange: ['#4E4376', '#2B5876', '#4E4376'],
   });
+
   const validateEmail = (email: string) => {
     const re = /\S+@\S+\.\S+/;
     return re.test(email);
   };
-  const handleSignUp = async () => {
 
+  const handleSignUp = async () => {
     const errors = {
       nome: !nome,
       email: !email || !validateEmail(email),
       password: !password,
       instituicao: !instituicao,
-      confirmPassword: password !== confirmPassword
+      confirmPassword: password !== confirmPassword,
+      uid: !cartao
     };
 
     setErrorFields(errors);
@@ -111,15 +113,18 @@ const Cadastro = () => {
       setToastMessage('As senhas não coincidem');
       return;
     }
+    if (!cartao) {
+      setToastMessage('Por favor, insira o UID do cartão RFID');
+      return;
+    }
 
     setLoading(true);
     let firebaseUser = null;
 
     try {
       const auth = getAuth(app);
-
-
       const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+      
       if (signInMethods.length > 0) {
         throw {
           code: 'auth/email-already-in-use',
@@ -134,12 +139,10 @@ const Cadastro = () => {
         return;
       }
 
-
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       firebaseUser = userCredential.user;
 
       await firebaseUser.getIdToken(true);
-
 
       const uid = firebaseUser.uid;
       const { error: supabaseError } = await supabase
@@ -168,7 +171,7 @@ const Cadastro = () => {
       let errorMessage = 'Erro desconhecido ao criar conta';
       let technicalDetails = '';
 
-      if ((error as { code?: string }).code) {
+      if (typeof error === 'object' && error !== null && 'code' in error) {
         switch ((error as { code?: string }).code) {
           case 'auth/email-already-in-use':
             errorMessage = (error as { message?: string }).message || 'Este email já está cadastrado';
@@ -196,11 +199,7 @@ const Cadastro = () => {
             break;
 
           default:
-            if (typeof error === 'object' && error !== null && 'code' in error && 'message' in error) {
-              errorMessage = `Erro técnico (${(error as { code?: string }).code || 'desconhecido'}): ${(error as { message?: string }).message || 'Tente novamente'}`;
-            } else {
-              errorMessage = 'Erro técnico desconhecido. Tente novamente.';
-            }
+            errorMessage = `Erro técnico (${(error as { code?: string }).code || 'desconhecido'}): ${(error as { message?: string }).message || 'Tente novamente'}`;
             technicalDetails = (error as { code?: string }).code || 'UNKNOWN_ERROR';
         }
       } else {
@@ -220,11 +219,8 @@ const Cadastro = () => {
 
       setModalMessage(errorMessage);
       setErrorModalVisible(true);
-
-      // Show toast message with error text for extra feedback
       setToastMessage(errorMessage);
 
-      // Limpeza de usuário inconsistente
       if (firebaseUser && typeof error === 'object' && error !== null && 'code' in error && !['auth/email-already-in-use', 'auth/invalid-email'].includes((error as { code: string }).code)) {
         try {
           await deleteUser(firebaseUser);
@@ -239,7 +235,6 @@ const Cadastro = () => {
       setLoading(false);
     }
   };
-
 
   const handleDownload = async (text: string, fileName: string) => {
     try {
@@ -312,7 +307,6 @@ const Cadastro = () => {
             Seja criativo com o nome fornecido, pois caso outra pessoa use o mesmo, vocês farão parte da mesma equipe.
           </Text>
 
-
           <TextInput
             ref={instituicaoRef}
             style={[styles.input, !instituicao && errorFields.instituicao && styles.inputError]}
@@ -321,21 +315,23 @@ const Cadastro = () => {
             value={instituicao}
             onChangeText={setInstituicao}
             returnKeyType="next"
+            onSubmitEditing={() => cartaoRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+
+          <TextInput
+            ref={cartaoRef}
+            style={[styles.input, !cartao && errorFields.uid && styles.inputError]}
+            placeholder="UID do Cartão RFID"
+            placeholderTextColor="rgba(255,255,255,0.7)"
+            value={cartao}
+            onChangeText={setCartao}
+            editable={true}
+            returnKeyType="next"
             onSubmitEditing={() => emailRef.current?.focus()}
             blurOnSubmit={false}
           />
-         <TextInput
-  ref={cartaoRef}
-  style={[styles.input, !cartao && errorFields.uid && styles.inputError]}
-  placeholder="UID do Cartão RFID"
-  placeholderTextColor="rgba(255,255,255,0.7)"
-  value={cartao}
-  onChangeText={setCartao}   
-  editable={true}
-  returnKeyType="next"
-  onSubmitEditing={() => emailRef.current?.focus()}
-  blurOnSubmit={false}
-/>
+
           <TextInput
             ref={emailRef}
             style={[styles.input, (!email || !validateEmail(email)) && errorFields.email && styles.inputError]}
@@ -542,6 +538,7 @@ const Cadastro = () => {
     </SafeAreaView>
   );
 };
+
 interface ParticleProps {
   size: number;
   left: number;
@@ -551,7 +548,7 @@ interface ParticleProps {
 }
 
 const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay }) => {
-  const animValue = new Animated.Value(0);
+  const animValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const animation = Animated.loop(
@@ -601,7 +598,6 @@ const Particle: React.FC<ParticleProps> = ({ size, left, top, duration, delay })
 };
 
 const styles = StyleSheet.create({
-
   background: {
     position: 'absolute',
     left: 0,
@@ -716,7 +712,6 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
     fontWeight: 'bold',
   },
-
   particle: {
     position: 'absolute',
     backgroundColor: 'rgba(255,255,255,0.6)',
@@ -799,9 +794,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-
 });
 
-
 export default Cadastro;
-
