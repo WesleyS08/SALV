@@ -36,6 +36,8 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
     const [playerError, setPlayerError] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [embedAllowed, setEmbedAllowed] = useState(true); //Novidade
+
 
     const [streamInfo, setStreamInfo] = useState<{
         isLive: boolean;
@@ -57,38 +59,60 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
         return match && match[1] ? match[1] : null;
     };
 
-    // Atualiza os dados do Supabase
-    const atualizarConteudo = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('ngrok_links')
-                .select('*')
-                .order('updated_at', { ascending: false })
-                .limit(1);
+// Adicione esta função para verificar se o embedding é permitido
+const checkEmbeddingAllowed = async (videoId: string): Promise<boolean> => {
+    try {
+        const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+        return response.ok;
+    } catch (error) {
+        console.error('Erro ao verificar embedding:', error);
+        return false;
+    }
+};
 
-            if (error) throw error;
+// Modifique a função atualizarConteudo para verificar o embedding
+const atualizarConteudo = async () => {
+    try {
+        const { data, error } = await supabase
+            .from('ngrok_links')
+            .select('*')
+            .order('updated_at', { ascending: false })
+            .limit(1);
 
-            if (data && data.length > 0) {
-                const streamData = data[0];
+        if (error) throw error;
 
-                setStreamInfo({
-                    isLive: streamData.AoVivo ?? false,
-                    lastStream: streamData.updated_at ?? '',
-                    viewers: streamData.viewers ?? 0,
-                    videoUrl: streamData.url ?? '',
-                });
+        if (data && data.length > 0) {
+            const streamData = data[0];
+            const videoId = extractVideoId(streamData.url);
+            
+            setStreamInfo({
+                isLive: streamData.AoVivo ?? false,
+                lastStream: streamData.updated_at ?? '',
+                viewers: streamData.viewers ?? 0,
+                videoUrl: streamData.url ?? '',
+            });
+
+            // Verificar embedding apenas se for URL do YouTube e tiver videoId
+            if (videoId && (streamData.url?.includes('youtube.com') || streamData.url?.includes('youtu.be'))) {
+                const isEmbedAllowed = await checkEmbeddingAllowed(videoId);
+                setEmbedAllowed(isEmbedAllowed);
             } else {
-                setStreamInfo({
-                    isLive: false,
-                    lastStream: '',
-                    viewers: 0,
-                    videoUrl: '',
-                });
+                setEmbedAllowed(false);
             }
-        } catch (err) {
-            console.error('Erro ao atualizar conteúdo da live:', err);
+        } else {
+            setStreamInfo({
+                isLive: false,
+                lastStream: '',
+                viewers: 0,
+                videoUrl: '',
+            });
+            setEmbedAllowed(true);
         }
-    };
+    } catch (err) {
+        console.error('Erro ao atualizar conteúdo da live:', err);
+        setEmbedAllowed(true); // Assume true por padrão para evitar falsos negativos
+    }
+};
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -204,6 +228,7 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
                     </TouchableOpacity>
 
                     <View style={styles.profileContainer}>
+                        {/* Image will reflect updated photoURL including preview URI */}
                         <Image
                             source={
                                 userData?.photoURL
@@ -211,12 +236,13 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
                                     : require('../../assets/img/user.png')
                             }
                             style={styles.profileImage}
+                            accessibilityLabel="Foto de perfil do usuário, incluindo pré-visualização se alterada em Conta"
                         />
                         <View style={styles.userInfo}>
-                            <Text style={[styles.userName, { fontSize }]} numberOfLines={1}>
+                            <Text style={[styles.userName, { color: '#FFF', fontSize }]} numberOfLines={1}>
                                 {userData?.Nome || user?.displayName || 'Usuário'}
                             </Text>
-                            <Text style={[styles.userEmail, { fontSize }]} numberOfLines={1}>
+                            <Text style={[styles.userEmail, { color: 'rgba(255,255,255,0.8)', fontSize: fontSize - 2 }]} numberOfLines={1}>
                                 {user?.email || 'email@exemplo.com'}
                             </Text>
                         </View>
@@ -229,60 +255,65 @@ const AoVivo = ({ navigation }: AoVivoProps) => {
                 <Text style={[styles.title, themeStyles.text, { fontSize }]}>TRANSMISSÃO AO VIVO</Text>
 
                 {streamInfo.isLive ? (
-                    !playerError ? (
-                        <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
-                            <YoutubePlayer
-                                key={videoId}
-                                ref={playerRef}
-                                height={isFullscreen ? width : 220}
-                                play={true}
-                                videoId={videoId}
-                                onError={e => {
-                                    console.error('Erro no player:', e);
-                                    setPlayerError(true);
-                                }}
-                                webViewStyle={styles.videoPlayer}
-                                onReady={() => setPlayerError(false)}
-                                onChangeState={state => {
-                                    if (state === 'ended') {
-                                        // opcional: tratar quando a live acabar
-                                    }
-                                }}
-                                onFullScreenChange={(status: boolean | ((prevState: boolean) => boolean)) => setIsFullscreen(status)}
-                            />
-                            <TouchableOpacity
-                                style={styles.fullscreenButton}
-                                onPress={toggleFullscreen}
-                            >
-                                <Ionicons
-                                    name={isFullscreen ? "contract" : "expand"}
-                                    size={24}
-                                    color="#FFF"
-                                />
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <View style={[styles.placeholder, themeStyles.placeholder]}>
-                            <Ionicons name="alert-circle" size={60} color="#FF6B6B" />
-                            <Text style={[styles.placeholderText, themeStyles.text, { fontSize }]}>
-                                Erro ao carregar a transmissão
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.retryButton}
-                                onPress={handleRetry}
-                            >
-                                <Text style={[styles.retryButtonText, { fontSize }]}>Tentar novamente</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )
-                ) : (
-                    <View style={[styles.placeholder, themeStyles.placeholder]}>
-                        <Ionicons name="videocam-off" size={60} color="#888" />
-                        <Text style={[styles.placeholderText, themeStyles.text, { fontSize }]}>
-                            Nenhuma transmissão no momento
-                        </Text>
-                    </View>
-                )}
+    !playerError && embedAllowed ? (
+        // Player YouTube normal
+        <View style={[styles.videoContainer, isFullscreen && styles.fullscreenVideo]}>
+            <YoutubePlayer
+                key={videoId}
+                ref={playerRef}
+                height={isFullscreen ? width : 220}
+                play={true}
+                videoId={videoId}
+                onError={e => {
+                    console.error('Erro no player:', e);
+                    setPlayerError(true);
+                }}
+                webViewStyle={styles.videoPlayer}
+                onReady={() => setPlayerError(false)}
+                onChangeState={state => {
+                    if (state === 'ended') {
+                        // opcional: tratar quando a live acabar
+                    }
+                }}
+                onFullScreenChange={setIsFullscreen}
+            />
+            <TouchableOpacity
+                style={styles.fullscreenButton}
+                onPress={toggleFullscreen}
+            >
+                <Ionicons
+                    name={isFullscreen ? "contract" : "expand"}
+                    size={24}
+                    color="#FFF"
+                />
+            </TouchableOpacity>
+        </View>
+    ) : (
+        // Mensagem de erro ou fallback
+        <View style={[styles.placeholder, themeStyles.placeholder]}>
+            <Ionicons name="alert-circle" size={60} color="#FF6B6B" />
+            <Text style={[styles.placeholderText, themeStyles.text, { fontSize }]}>
+                {embedAllowed ? 'Erro ao carregar a transmissão' : 'Esta transmissão não pode ser exibida no app'}
+            </Text>
+            <TouchableOpacity
+                style={styles.retryButton}
+                onPress={embedAllowed ? handleRetry : handlePress}
+            >
+                <Text style={[styles.retryButtonText, { fontSize }]}>
+                    {embedAllowed ? 'Tentar novamente' : 'Assistir no YouTube'}
+                </Text>
+            </TouchableOpacity>
+        </View>
+    )
+) : (
+    // Quando não há transmissão
+    <View style={[styles.placeholder, themeStyles.placeholder]}>
+        <Ionicons name="videocam-off" size={60} color="#888" />
+        <Text style={[styles.placeholderText, themeStyles.text, { fontSize }]}>
+            Nenhuma transmissão no momento
+        </Text>
+    </View>
+)}
 
                 {/* Informações da transmissão */}
                 <View style={[styles.infoCard, themeStyles.infoCard]}>

@@ -137,6 +137,7 @@ const styles = StyleSheet.create({
   },
   modalView: {
     width: '90%',
+    height: '90%',
     backgroundColor: 'rgba(30,30,30,0.95)',
     borderRadius: 16,
     paddingVertical: 20,
@@ -162,7 +163,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   scrollArea: {
-    maxHeight: '75%',
+    maxHeight: '100%',
     marginTop: 10,
   },
   listItem: {

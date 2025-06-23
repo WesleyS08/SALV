@@ -44,6 +44,7 @@ const Conta = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [loadingPassword, setLoadingPassword] = useState(false);
     const togglePasswordVisibility = () => setShowPassword(!showPassword);
+    const [tempPhotoURL, setTempPhotoURL] = useState<string | null>(null);
 
 
     useEffect(() => {
@@ -116,12 +117,56 @@ const Conta = () => {
     const getModalContent = (content: string | null) => {
         switch (content) {
             case 'Sobre nós':
-                return 'Aqui está o conteúdo sobre a empresa, sua missão, visão e valores.';
+                return 'Aqui está os membros que fizeram acontecer o SALV:\n\n' +
+                    '• Davi de Brito Junior - Desenvolvedor FullStack\n' +
+                    '• Maria Luiza Cruvinel dos Santos - Desenvolvedora FrontEnd\n' +
+                    '• Wesley Silva dos Santos - Designer UI/UX\n';
             case 'Política de Privacidade':
-                return 'Aqui está a nossa política de privacidade, explicando como tratamos seus dados.';
-            case 'Termos e Condições':
-                return 'Ao usar o SALV, você concorda com nossos termos: monitoramento via sensores, autenticação por RFID/biometria, gravação de eventos e responsabilidades como manter hardware funcional e uso legal do sistema.';
+              return `1. Dados Coletados
+ • Biometria facial (processamento local)
+• Registros de acesso RFID
+• Metadados técnicos (IP, horários)
 
+ 2. Compartilhamento
+ - Supabase: armazenamento de vídeos
+- Firebase: notificações push
+- APIs REST: integração de sistemas
+
+3. Segurança
+• Criptografia AES-256
+• Autenticação em duas etapas
+• Auditorias trimestrais
+                    
+4. Direitos
+- Solicitar exclusão de dados
+- Acessar histórico completo
+ - Revogar permissões
+
+ 5. Atualizações
+Notificações via e-mail 15 dias antes
+Versão vigente: 2.0.0 (Maio/2024)`;
+            case 'Termos e Condições':
+                return `Ao usar o SALV, você concorda com estes Termos
+• Versão atualizada em: 01/01/2024
+
+2. Funcionalidades
+- Monitoramento via sensores/câmeras
+- Autenticação RFID/biometria
+- Gravação automática de eventos
+
+3. Responsabilidades
+• Manter hardware funcional (ESP32, câmeras)
+• Configurar corretamente MQTT/APIs
+• Não usar para atividades ilegais
+
+4. Limitações
+- Não cobrimos falhas de hardware
+- Isenção por uso indevido
+- Sujeito a disponibilidade de serviços em nuvem
+
+5. Contato
+suporte.salv@dominio.com
++55 (11) 98888-8888 | São Paulo/SP`;
             default:
                 return 'Conteúdo não encontrado.';
         }
@@ -177,34 +222,55 @@ const Conta = () => {
             setToastMessage('Erro ao selecionar a imagem da galeria.');
         }
     };
-    const handleImageResult = async (result: ImagePicker.ImagePickerResult) => {
-        try {
-            if (result.canceled || !result.assets?.length) {
-                throw new Error('Nenhuma imagem selecionada');
-            }
-
-            const imageBase64 = result.assets[0].base64;
-            if (!imageBase64) {
-                throw new Error('Dados da imagem ausentes');
-            }
-
-            const currentUser = await verifyAuth();
-
-            console.log("Verificando userData antes do envio:", userData);
-
-            if (!userData || !userData.Nome?.trim()) {
-                throw new Error('Complete seu perfil antes de adicionar foto');
-            }
-
-            await dbFunctionInsertPhotoProfile(currentUser.uid, imageBase64, userData.Nome.trim());
-            setToastMessage('Foto atualizada com sucesso!');
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Erro ao processar imagem';
-            setToastMessage(errorMessage);
-        } finally {
-            setModalVisible(false);
+   const handleImageResult = async (result: ImagePicker.ImagePickerResult) => {
+    try {
+        if (result.canceled || !result.assets?.length) {
+            throw new Error('Nenhuma imagem selecionada');
         }
-    };
+
+        const imageBase64 = result.assets[0].base64;
+        if (!imageBase64) {
+            throw new Error('Dados da imagem ausentes');
+        }
+
+        const currentUser = await verifyAuth();
+
+        if (!userData || !userData.Nome?.trim()) {
+            throw new Error('Complete seu perfil antes de adicionar foto');
+        }
+
+        // URI local da imagem selecionada
+        const tempImageUri = result.assets[0].uri;
+        
+        // Atualização imediata via contexto global (para todas as telas)
+        setTempPhotoURL(tempImageUri); // Adiciona esta linha para atualizar o contexto
+        
+        // Atualização local do estado (mantida para compatibilidade)
+        setUserData(prev => ({
+            ...prev,
+            photoURL: tempImageUri,
+        }));
+
+        // Faz o upload para o banco de dados
+        await dbFunctionInsertPhotoProfile(currentUser.uid, imageBase64, userData.Nome.trim());
+
+        // Após upload bem-sucedido:
+        // 1. Limpa a pré-visualização temporária
+        setTempPhotoURL(null);
+        // 2. Atualiza com a URL permanente (se aplicável)
+        // const publicUrl = await getPublicUrlFromStorage(currentUser.uid);
+        // setUserData(prev => ({ ...prev, photoURL: publicUrl }));
+
+        setToastMessage('Foto atualizada com sucesso! Para ser exibida em todas as seções, entre novamente');
+      
+    } catch (error) {
+        // Reverte as alterações em caso de erro
+        setTempPhotoURL(null); // Remove a pré-visualização
+        setToastMessage(error instanceof Error ? error.message : 'Erro ao processar imagem');
+    } finally {
+        setModalVisible(false);
+    }
+};
 
     const handleChangePassword = async () => {
         try {
@@ -268,7 +334,7 @@ const Conta = () => {
 
     const handleDeleteAccount = async () => {
         Alert.alert(
-            "Confirmar Exclusão",
+            "Confirmar Desativação",
             "Deseja realmente desativar sua conta? Essa ação não poderá ser desfeita.",
             [
                 { text: "Cancelar", style: "cancel" },
@@ -506,7 +572,7 @@ const Conta = () => {
                     onPress={handleDeleteAccount}
                 >
                     <Ionicons name="trash" size={20} color="#FFF" />
-                    <Text style={[styles.actionButtonText, { fontSize }]}>Deletar Conta</Text>
+                    <Text style={[styles.actionButtonText, { fontSize }]}>Desativar Conta</Text>
                 </TouchableOpacity>
             </View>
 
@@ -808,7 +874,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     logoutButton: {
-        backgroundColor: '#d9534f',
+        backgroundColor: '#ffa500',
     },
     deleteButton: {
         backgroundColor: '#ff6b6b',
@@ -828,7 +894,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.8)',
     },
     modalContent: {
-        width: width - 40,
+        width: width - 30,
         maxHeight: '80%',
         padding: 20,
         borderRadius: 12,
@@ -848,11 +914,11 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     modalScroll: {
-        maxHeight: '70%',
+        maxHeight: '90%',
         marginBottom: 20,
     },
     modalText: {
-        fontSize: 16,
+        fontSize: 10,
         lineHeight: 24,
         color: '#333',
     },

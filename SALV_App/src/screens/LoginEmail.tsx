@@ -153,19 +153,92 @@ const particles = useMemo(
     }
   };
 
-  // Função principal de login
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setToastMessage('Email e senha são obrigatórios');
+const handleLogin = async () => {
+  if (!email || !password) {
+    setToastMessage('Email e senha são obrigatórios');
+    return;
+  }
+
+  if (!validateEmail(email)) {
+    setToastMessage('Formato de email inválido');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    const auth = getAuth(app);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const { uid, email: userEmail } = userCredential.user;
+    console.log('Usuário logado com sucesso:', uid, userEmail);
+    // 🔒 Checar se o usuário está desativado no Supabase
+    const { data, error } = await supabase
+      .from('Tb_Usuarios')
+      .select('Data_Desativacao')
+      .eq('ID_Usuarios', uid)
+      .single();
+
+    if (error || !data) {
+      throw new Error("Não foi possível verificar o status da conta.");
+    }
+
+    if (data.Data_Desativacao) {
+      await signOut(auth);
+      setModalMessage("Sua conta foi desativada. Entre em contato com o suporte.");
+      setErrorModalVisible(true);
       return;
     }
-  
-    if (!validateEmail(email)) {
-      setToastMessage('Formato de email inválido');
-      return;
+
+    // 🔐 Salvar biometria se estiver habilitado
+    if (enableBiometric) {
+      try {
+        await saveCredentialsForBiometric(email, password);
+        setToastMessage('Login salvo para biometria!');
+      } catch (error) {
+        console.warn('Biometria não configurada:', error);
+      }
     }
-  
-    setLoading(true);
+
+    // ✅ Navegar para a Home
+    navigation.reset({
+      index: 0,
+      routes: [{
+        name: 'Home',
+        params: { user: { id: uid, email: userEmail } }
+      }],
+    });
+
+  } catch (error: any) {
+    let errorMessage = '';
+
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/invalid-credential':
+          errorMessage = 'Credenciais inválidas';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'Usuário não encontrado';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Senha incorreta';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Muitas tentativas. Tente mais tarde';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'Conta desativada';
+          break;
+        default:
+          errorMessage = error.message || 'Erro desconhecido';
+      }
+    }
+
+    setModalMessage(errorMessage);
+    setErrorModalVisible(true);
+  } finally {
+    setLoading(false);
+  }
+
   
     try {
       const auth = getAuth(app);
@@ -178,6 +251,7 @@ const particles = useMemo(
         .select('Data_Desativacao')
         .eq('UID', uid)
         .single();
+        console.log("Supabase response:", { data, error, uid }); // Adicione isto
   
       if (error || !data) {
         throw new Error("Não foi possível verificar o status da conta.");
@@ -210,6 +284,7 @@ const particles = useMemo(
       });
   
     } catch (error: any) {
+      console.error("ERRO COMPLETO:", error); // Adicione isto
       let errorMessage = 'Erro ao fazer login';
   
       if (error.code) {

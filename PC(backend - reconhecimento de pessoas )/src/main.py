@@ -484,6 +484,7 @@ def criar_broadcast_youtube(youtube):
             "contentDetails": {
                 "enableAutoStart": True,
                 "enableAutoStop": True,
+                "enableEmbed": True  # Permite incorporação
             }
         }
 

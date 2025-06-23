@@ -24,68 +24,8 @@ const Gravacoes = () => {
     const { isDarkMode } = useDarkMode();
     const themeStyles = isDarkMode ? darkStyles : lightStyles;
     const { user } = useAuth();
-    const { userData, filmagens } = useUserData(user);
+    const { userData, filmagens, tempPhotoURL } = useUserData(user); // Remova o estado local
     const { fontSize } = useFontSize();
-
-    const renderItem = ({ item }: { item: Filmagem }) => (
-        <View style={[styles.itemContainer, themeStyles.itemContainer]}>
-            <View style={styles.itemHeader}>
-                <View style={styles.dateTimeContainer}>
-                    <Ionicons name="calendar" size={16} color="#4CAF50" />
-                    <Text style={[styles.dateText, themeStyles.text, { fontSize: fontSize - 2 }]}>
-                        {item.data}
-                    </Text>
-                </View>
-                <View style={styles.dateTimeContainer}>
-                    <Ionicons name="time" size={16} color="#2196F3" />
-                    <Text style={[styles.timeText, themeStyles.text, { fontSize: fontSize - 2 }]}>
-                        {item.hora_inicio} - {item.hora_fim}
-                    </Text>
-                </View>
-            </View>
-            
-            <Text style={[styles.eventText, themeStyles.text, { fontSize }]}>
-                {item.evento}
-            </Text>
-            
-            <View style={styles.videoContainer}>
-                {item.url_video ? (
-                    <>
-                        <Video
-                            source={{ uri: item.url_video }}
-                            style={styles.videoPlayer}
-                            useNativeControls
-                            resizeMode={ResizeMode.COVER}
-                            shouldPlay={false}
-                        />
-                        <TouchableOpacity 
-                            style={styles.downloadButton}
-                            onPress={() => console.log('Download:', item.url_video)}
-                        >
-                            <Ionicons name="download" size={20} color="#FFF" />
-                            <Text style={styles.downloadText}>Download</Text>
-                        </TouchableOpacity>
-                    </>
-                ) : (
-                    <View style={styles.noVideoContainer}>
-                        <Ionicons name="videocam-off" size={40} color="#888" />
-                        <Text style={[styles.noVideoText, themeStyles.text]}>
-                            Vídeo não disponível
-                        </Text>
-                    </View>
-                )}
-            </View>
-            
-            <View style={styles.itemFooter}>
-                <Text style={[styles.durationText, themeStyles.secondaryText]}>
-                    <Ionicons name="timer" size={14} /> {item.duracao || 'N/A'}
-                </Text>
-                <TouchableOpacity style={styles.shareButton}>
-                    <Ionicons name="share-social" size={18} color="#0D293E" />
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
 
     return (
         <View style={[styles.container, themeStyles.container]}>
@@ -97,11 +37,14 @@ const Gravacoes = () => {
                     <View style={styles.profileContainer}>
                         <Image
                             source={
-                                userData?.photoURL
-                                    ? { uri: userData.photoURL }
-                                    : require('../../assets/img/user.png')
+                                tempPhotoURL // 1. Primeiro verifica a pré-visualização temporária
+                                    ? { uri: tempPhotoURL }
+                                    : userData?.photoURL // 2. Depois a foto permanente
+                                        ? { uri: userData.photoURL }
+                                        : require('../../assets/img/user.png') // 3. Fallback padrão
                             }
                             style={styles.profileImage}
+                            accessibilityLabel="Foto de perfil do usuário, incluindo pré-visualização se alterada em Conta"
                         />
                         <View style={styles.userInfo}>
                             <Text style={[styles.userName, { color: '#FFF', fontSize }]} numberOfLines={1}>
@@ -140,7 +83,65 @@ const Gravacoes = () => {
                     <FlatList
                         data={filmagens}
                         keyExtractor={(item) => item.ID.toString()}
-                        renderItem={renderItem}
+                        renderItem={({ item }: { item: Filmagem }) => (
+                            <View style={[styles.itemContainer, themeStyles.itemContainer]}>
+                                <View style={styles.itemHeader}>
+                                    <View style={styles.dateTimeContainer}>
+                                        <Ionicons name="calendar" size={16} color="#4CAF50" />
+                                        <Text style={[styles.dateText, themeStyles.text, { fontSize: fontSize - 2 }]}>
+                                            {item.data}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.dateTimeContainer}>
+                                        <Ionicons name="time" size={16} color="#2196F3" />
+                                        <Text style={[styles.timeText, themeStyles.text, { fontSize: fontSize - 2 }]}>
+                                            {item.hora_inicio} - {item.hora_fim}
+                                        </Text>
+                                    </View>
+                                </View>
+                                
+                                <Text style={[styles.eventText, themeStyles.text, { fontSize }]}>
+                                    {item.evento}
+                                </Text>
+                                
+                                <View style={styles.videoContainer}>
+                                    {item.url_video ? (
+                                        <>
+                                            <Video
+                                                source={{ uri: item.url_video }}
+                                                style={styles.videoPlayer}
+                                                useNativeControls
+                                                resizeMode={ResizeMode.COVER}
+                                                shouldPlay={false}
+                                            />
+                                            <TouchableOpacity 
+                                                style={styles.downloadButton}
+                                                onPress={() => console.log('Download:', item.url_video)}
+                                            >
+                                                <Ionicons name="download" size={20} color="#FFF" />
+                                                <Text style={styles.downloadText}>Download</Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    ) : (
+                                        <View style={styles.noVideoContainer}>
+                                            <Ionicons name="videocam-off" size={40} color="#888" />
+                                            <Text style={[styles.noVideoText, themeStyles.text]}>
+                                                Vídeo não disponível
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                                
+                                <View style={styles.itemFooter}>
+                                    <Text style={[styles.durationText, themeStyles.secondaryText]}>
+                                        <Ionicons name="timer" size={14} /> {item.duracao || 'N/A'}
+                                    </Text>
+                                    <TouchableOpacity style={styles.shareButton}>
+                                        <Ionicons name="share-social" size={18} color="#0D293E" />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
                         contentContainerStyle={styles.listContainer}
                         showsVerticalScrollIndicator={false}
                     />
@@ -348,3 +349,4 @@ const lightStyles = StyleSheet.create({
 });
 
 export default Gravacoes;
+

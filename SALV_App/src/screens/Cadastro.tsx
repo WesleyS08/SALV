@@ -38,7 +38,7 @@ const Cadastro = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-const [cartao, setCartao] = React.useState('');
+  const [cartao, setCartao] = React.useState('');
 
   const nomeRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -220,6 +220,9 @@ const [cartao, setCartao] = React.useState('');
 
       setModalMessage(errorMessage);
       setErrorModalVisible(true);
+
+      // Show toast message with error text for extra feedback
+      setToastMessage(errorMessage);
 
       // Limpeza de usuário inconsistente
       if (firebaseUser && typeof error === 'object' && error !== null && 'code' in error && !['auth/email-already-in-use', 'auth/invalid-email'].includes((error as { code: string }).code)) {
@@ -521,13 +524,18 @@ const [cartao, setCartao] = React.useState('');
         onRequestClose={() => setErrorModalVisible(false)}
       >
         <View style={styles.modalContent}>
-          <View style={styles.modalView}>
+          <View style={[styles.modalView, {justifyContent: 'center'}]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Erro no Cadastro</Text>
-              <TouchableOpacity onPress={() => setErrorModalVisible(false)}>
+              <Text style={[styles.modalTitle, {color: '#FF4D4D'}]}>Erro no Cadastro</Text>
+              <TouchableOpacity onPress={() => setErrorModalVisible(false)} accessibilityLabel="Fechar erro">
                 <Ionicons name="close" size={24} color="rgba(255,255,255,0.7)" />
               </TouchableOpacity>
             </View>
+            <ScrollView style={{marginTop: 10}}>
+              <Text style={{color: 'white', fontSize: 16, fontWeight: '600'}}>
+                {modalMessage}
+              </Text>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -728,9 +736,6 @@ const styles = StyleSheet.create({
     right: 15,
     top: 15,
   },
-
-
-
   modalContent: {
     flex: 1,
     justifyContent: 'center',
@@ -739,6 +744,7 @@ const styles = StyleSheet.create({
   },
   modalView: {
     width: '90%',
+    height: '90%',
     backgroundColor: 'rgba(30,30,30,0.95)',
     borderRadius: 16,
     paddingVertical: 20,
@@ -797,5 +803,5 @@ const styles = StyleSheet.create({
 });
 
 
-
 export default Cadastro;
+

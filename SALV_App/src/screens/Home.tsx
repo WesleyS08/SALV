@@ -12,6 +12,7 @@ import { useDarkMode } from '../Global/DarkModeContext';
 import { useFontSize } from '../Global/FontSizeContext';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { User } from 'firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 
 moment.locale('pt-br');
 
