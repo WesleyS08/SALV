@@ -7,6 +7,7 @@
 > **Solução inteligente para segurança laboratorial**  
 > Combina visão computacional, IoT e notificações em tempo real para proteção de ambientes críticos
 
+
 ---
 
 ## 🧭 Índice Rápido
