@@ -1,85 +1,203 @@
-# SALV - Sistema de Alerta Laboratorial com Visão ⚡🔍📡
+# 🔍 SALV - Sistema de Alerta Laboratorial com Visão
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://www.python.org/)
+[![ESP32](https://img.shields.io/badge/ESP32-IoT-green?logo=espressif)](https://www.espressif.com/)
+[![License](https://img.shields.io/badge/License-MIT-success)](LICENSE)
+
+> **Solução inteligente para segurança laboratorial**  
+> Combina visão computacional, IoT e notificações em tempo real para proteção de ambientes críticos
+
+---
+
+## 🧭 Índice Rápido
+- [✨ Visão Geral](#-visão-geral)  
+- [🎯 Funcionalidades Principais](#-funcionalidades-principais)  
+- [🛠️ Tecnologias Chave](#-tecnologias-chave)  
+  - [🖥️ Hardware](#️-hardware)  
+  - [📚 Software Stack](#-software-stack)  
+- [⚡ Comece em 5 Minutos](#-comece-em-5-minutos)  
+- [📐 Arquitetura do Sistema](#-arquitetura-do-sistema)  
+- [📡 Comunicação e Protocolos](#-comunicação-e-protocolos)  
+- [🛠️ Módulo ESP32 - Guia Completo](#-módulo-esp32---guia-completo)  
+- [👥 Autores & Agradecimentos](#-autores--agradecimentos)  
+ 
 
 
 ---
 
-## 🚀 Índice
+## ✨ Visão Geral
 
-- [Sobre o Projeto](#sobre-o-projeto)
-- [Funcionalidades](#funcionalidades)
-- [Tecnologias Utilizadas](#tecnologias-utilizadas)
-  - [Hardware e Sensores](#hardware-e-sensores)
-  - [Software e Backend](#software-e-backend)
-  - [Protocolos de Automação](#protocolos-de-automação)
-  - [Comunicação e Protocolos](#comunicação-e-protocolos)
-- [ESP32](#esp32)
-- [Autores](#autores-)
+O **SALV** é um sistema integrado de segurança que utiliza:
 
----
+- 👁️ **Visão computacional** (YOLOv8) para detecção facial e de movimento  
+- 📡 **IoT** (ESP32 + sensores) para monitoramento ambiental  
+- 🔔 **Notificações instantâneas** via app mobile  
 
-## Sobre o Projeto⚡🔍📡
+**Cenários ideais**:
+- 🧪 Laboratórios com equipamentos sensíveis  
+- 🏢 Salas de servidores e infraestrutura crítica  
+- 🔒 Qualquer ambiente que necessite de monitoramento automatizado  
 
-SALV (Sistema de Alerta Laboratorial com Visão) é uma solução de segurança que integra a detecção de movimento, detecção facial e notificações instantâneas para monitoramento eficiente e automatizado de ambientes. Ideal para laboratórios e locais restritos, o sistema oferece proteção de dados e controle de acesso acessível e de baixo custo.
-
-## Funcionalidades
-
-| **Funcionalidade**               | **Descrição**                                                                                  |
-|:------------------------------------:|:-----------------------------------------------------------------------------------------------:|
-| **Detecção de Movimento**         | Monitora o ambiente e ativa o sistema quando movimento é detectado.                           |
-| **Detecção Facial**                | Reconhece o rosto da pessoa e destaca na filmagem.                                            |
-| **Autenticação com Cartões de Acesso** | Permite o acesso apenas a usuários com cartões válidos.                                   |
-| **Gravação Automática**            | Registra imagens e vídeos quando acessos não autorizados são detectados.                      |
-| **Notificações em Tempo Real**    | Envia alertas instantâneos para o aplicativo móvel, permitindo respostas rápidas.              |
+**Diferenciais**:
+✅ Baixo custo de implementação  
+✅ Fácil integração com sistemas existentes  
+✅ Código 100% aberto e customizável  
 
 ---
 
-## Tecnologias Utilizadas
+## 🎯 Funcionalidades Principais
 
-O SALV foi desenvolvido com uma série de tecnologias e APIs divididas em algumas partes principais para garantir escalabilidade, eficiência e facilidade de manutenção. Confira abaixo as tecnologias utilizadas:
+<div align="center">
 
-### **Hardware e Sensores**
+| Funcionalidade               | Descrição                                                                 | Status       |
+|------------------------------|---------------------------------------------------------------------------|--------------|
+| **👁️ Detecção de Movimento**  | Ativa o sistema quando detecta atividade usando sensor PIR + visão computacional | ✅ Implementado |
+| **🤖 Detecção Facial**        | Identifica rostos em tempo real com YOLOv8 e destaca na interface         | ✅ Implementado |
+| **🪪 Autenticação por RFID**  | Controla acesso via cartões cadastrados no banco de dados                 | ✅ Implementado |
+| **📹 Gravação Automática**    | Armazena vídeos de acessos não autorizados no Supabase Storage           | ✅ Implementado |
+| **🔔 Notificações em Tempo Real** | Envia alertas                 | ✅ Implementado |
 
-Responsáveis pela captura de dados do ambiente, utilizando sensores de movimento, câmeras e dispositivos de autenticação.
-
-| **Tecnologia**              | **Descrição**                                                               |
-|-----------------------------|----------------------------------------------------------------------------:|
-| **ESP32**                   | Controladores que integram sensores e comunicam com o sistema central.      |
-| **Webcam**                  | Alternativa para o Raspberry Pi câmera afim de diminuir o custo             |
-| **Leitor RFID**             | Permite autenticação através de cartões de acesso.                          |
-| **LCD ( Pode ser substituído por leds)**                     | Melhora no entendimento do sistema permitindo repassar mensagens do sistema.|
-| **Comunicação via MQTT**    | Protocolo de comunicação eficiente para troca de dados entre dispositivos.  |
+</div>
 
 ---
 
-### **Software e Backend**
+## 🛠 Tecnologias Chave
 
-O software é responsável pelo processamento dos dados, incluindo a detecção facial, autenticação de usuários e envio de notificações.
+### 🖥️ Hardware
 
-| **Tecnologia**              | **Descrição**                                                               |
-|-----------------------------|:----------------------------------------------------------------------------:|
-| **YOLOv8 e  MediaPipe**                  | Biblioteca para detecção de movimento e faces em tempo real.                |
-| **Python**                  | Linguagem principal para controle e análise das imagens e dados.           |
-| **Supabase**                | Banco de dados e serviço de autenticação segura.                            |
-| **React Native**            | Framework para o desenvolvimento do aplicativo móvel.                       |
-| **Firebase Cloud Messaging**| Envio de notificações em tempo real para o aplicativo móvel.               |
-| **Supabase Store**          | Armazenamento de imagens e vídeos de acessos não autorizados.               |
+| Componente               | Função                                                                     | Especificações |
+|--------------------------|----------------------------------------------------------------------------|----------------|
+| **ESP32-WROOM**          | Processamento local e comunicação com sensores                             | WiFi + Bluetooth |
+| **Câmera USB HD**        | Captura de imagens para análise (mínimo 720p)                             | 30 FPS         |
+| **Leitor RFID-RC522**    | Autenticação de usuários via cartões                                      | 13.56 MHz      |
+
+### 📚 Software Stack
+
+```mermaid
+pie
+    title Principais Linguagens (>5%)
+    "HTML" : 56.4
+    "TypeScript" : 8.6
+    "TeX" : 31.7
+    "Outras" : 3.3
+```
+
+### Principais Tecnologias:
+- **Visão Computacional**: OpenCV + YOLOv8
+
+- **IoT**: MicroPython, MQTT (HiveMQ)
+
+- **Autenticação**: JWT, Supabase Auth
+
+- **Armazenamento**: Supabase Storage
+
+- **Mobile**: React Native + Firebase
 
 ---
 
-### **Protocolos de Automação**
+## ⚡ Comece em 5 Minutos
 
-Esses protocolos garantem a operação contínua e autônoma do sistema, com funcionalidades como inicialização automática e acionamento remoto de dispositivos.
+### Pré-requisitos
+- ✔️ Python 3.10+ instalado
+- ✔️ Arduino IDE configurada para ESP32
+- ✔️ Acesso a um broker MQTT (ex: HiveMQ)
 
-| **Tecnologia**           | **Descrição**                                                               |
-|--------------------------|:----------------------------------------------------------------------------:|
-| **Wake-on-Lan (WOL)**     | Permite ligar o PC remotamente usando o ESP32, caso o PC esteja desligado ( Garanta que seu computador seja compatível). |
-| **Task Scheduler**        | Automatiza a inicialização do programa Python ao ligar o PC.                |
-| **AutoStart (Python Script)** | Configuração para iniciar automaticamente os serviços ao ligar a máquina. |
+### Passo a Passo Rápido
+
+1. **Preparação do Ambiente**:
+   ```bash
+   git clone https://github.com/WesleyS08/SALV.git
+   cd SALV
+   pip install -r requirements.txt
+   ```
+2. **Configuração do Hardware:**
+   ```bash
+   cd ESP32(IoT)
+    # Abra o arquivo ESP32_Validacao.ino no Arduino IDE
+    # Configure as credenciais WiFi e MQTT
+    # Faça upload para o dispositivo
+   ```
+3. **Inicialização do Sistema:**
+    ```bash
+   python main.py
+   ```
+💡 Modo de Teste Sem Hardware:
+Você pode simular alertas manualmente através do **[HiveMQ](https://www.hivemq.com/)**
 
 ---
+### 🛠 Solução de Problemas Frequentes
+
+| Problema            | Sintomas                      | Solução                                                                                                                                             | Nível de Dificuldade |
+|---------------------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|----------------------|
+| LCD sem display     | Nenhum conteúdo visível       | 1. Execute `endereco_do_lcd.ino`<br>2. Atualize o endereço I2C no código principal                                                                 | 🟠 Moderado          |
+| Falha no RFID       | Cartões não são reconhecidos  | 1. Verifique conexão do pino SS (normalmente 5)<br>2. Reinicie o ESP32<br>3. Teste com `LeitorDeCartao.ino`                                        | 🟢 Fácil             |
+| Erros MQTT          | Conexão instável              | 1. Teste com `mosquitto_ping`<br>2. Verifique credenciais no broker<br>3. Atualize certificados TLS                                                | 🟠 Moderado          |
+| Latência na detecção| FPS baixo (>200ms por frame)  | 1. Reduza resolução para 480p<br>2. Desative features não essenciais no YOLOv8<br>3. Use GPU com cuidado                                           | 🔴 Difícil           |
+| Crash no OBS        | Fechamento inesperado         | 1. Desative aceleração de hardware<br>2. Atualize drivers de vídeo<br>3. Use modo de compatibilidade                                               | 🟠 Moderado          |
+
+⚠️ Aviso Importante: Sempre desconecte a alimentação antes de fazer ajustes no hardware!
+
 ---
 
-## **Comunicação e Protocolos**
+
+### **🖥️ Software e Backend**
+
+O núcleo inteligente do SALV combina frameworks modernos para processamento em tempo real:
+
+| **Tecnologia**              | **Descrição**                                                               | **Versão** |
+|-----------------------------|:----------------------------------------------------------------------------:|--------- |
+| **Visão Computacional**                  | YOLOv8 (Object Detection), MediaPipe (Face Recognition)                | v8.0.192 |
+| **Backend Core**                  | Python (OpenCV, FastAPI, Paho-MQTT).           | 3.10+|
+| **Autenticação**                | Supabase Auth (JWT), RFID Encryption.                            | v2.38.5|
+| **Mobile**            | React Native (TypeScript).                       | 0.72.3|
+| **Armazenamento**| Supabase Storage (Vídeos).               | v1.8.10|
+
+
+
+## 🌐 Arquitetura do Sistema
+
+```mermaid
+graph LR
+    A[🟢 ESP32] -->|MQTT TLS| B[🔵 Python Backend]
+    B -->|REST API| C[(🟠 Supabase)]
+    B -->|WebSockets| D[🔴 React Native App]
+    C --> D
+    A -.->|Wake-on-LAN| E[🖥️ PC]
+    
+    style A fill:#4CAF50,stroke:#333
+    style B fill:#2196F3,stroke:#333
+    style C fill:#FF9800,stroke:#333
+    style D fill:#E91E63,stroke:#333
+    style E fill:#9C27B0,stroke:#333
+```
+
+**Legenda**:  
+🟢 `ESP32` → Coleta de dados do ambiente  
+🔵 `Backend` → Processamento  
+🟠 `Supabase` → Armazenamento  
+🔴 `App Mobile` → Interface do usuário
+
+**Fluxo de Dados:**
+1. Sensores → MQTT → Backend
+2. Backend → (Processamento) → DB/Notificações
+3. DB ↔ Sincronização com App Mobile
+
+---
+
+### **⚙️ Protocolos de Automação**
+
+Este sistema adota protocolos de automação que garantem operação contínua, inicialização automática e acionamento remoto de dispositivos, como estações de trabalho e serviços monitorados.
+| **Tecnologia**           | **Implementação**                                                               | **Finalidade** |
+|--------------------------|:----------------------------------------------------------------------------:| ---------|
+| **Wake-on-Lan (WOL)**     | python-wol lib / própria função do pc |Ligar estação remotamente |
+| **Task Scheduler**        | Automatiza a inicialização do programa Python ao ligar o PC.                | Inicialização do backend |
+| **AutoStart (Python Script)** | Configuração para iniciar automaticamente os serviços ao ligar a máquina. | Monitoramento de dispositivos
+
+
+
+---
+
+## **📡 Comunicação e Protocolos**
 
 O sistema **SALV** utiliza protocolos de comunicação e APIs para garantir uma troca de informações eficiente e em tempo real entre os dispositivos, como sensores, câmeras, e o sistema central. O uso do **MQTT** e APIs específicas permite uma integração ágil e a resposta rápida aos eventos detectados.
 
@@ -105,7 +223,6 @@ Com o objetivo de uma melhor organização e gestão das mensagens, nosso MQTT u
 | **Acesso/Negado**      | Tópico que aciona os protocolos de segurança do sistema, como início de gravação, alertas e outras medidas de segurança, caso o acesso seja negado. |
 
 
----
 #### ° **API RESTful para Integração de Funcionalidades**
 
 A API RESTful desenvolvida para o SALV (Sistema de Alerta Laboratorial com Visão) desempenha um papel fundamental na integração e comunicação entre os diversos componentes do sistema. Com um design orientado a serviços, a API permite que diferentes módulos, como sensores de movimento, câmeras e a interface do aplicativo móvel, interajam de forma eficiente e segura.
@@ -119,84 +236,150 @@ A API RESTful desenvolvida para o SALV (Sistema de Alerta Laboratorial com Visã
 | Gerenciamento de Eventos | A API registra e gerencia eventos adequadamente, acionando gravação de vídeos e notificações ao detectar atividades não autorizadas, além de registrar detalhes no banco de dados.|
 | Escalabilidade e Manutenção | Com uma arquitetura modular, a API é facilmente escalável, facilitando a adição de novas funcionalidades e manutenção do sistema para atender às necessidades dos usuários.|
 
+### Fluxo da Api
+```mermaid
+graph TB
+    Root[API Principal] --> Security
+    Root --> Status
+    Root --> Teste
+
+    %% SECURITY: controle de acesso
+    Security --> VerificarCartao["/verificar-cartao"]
+    VerificarCartao --> UIDValido["UID válido?"]
+    UIDValido --> Entrada["Entrada ou Saída"]
+    UIDValido --> Negado["Acesso negado"]
+    Negado --> Alert["Envia notificação"]
+    Negado --> Recording["Inicia gravação"]
+
+    Security --> RegistroEntrada["/registro-entrada"]
+    RegistroEntrada --> EntradaRegistrada["Entrada registrada"]
+
+    Security --> RegistroSaida["/registro-acesso"]
+    RegistroSaida --> SaidaRegistrada["Saída registrada"]
+
+    %% STATUS: conectividade, teste
+    Status --> HelloWorld["/ (Hello World)"]
+    HelloWorld --> StatusOK["Tudo funcionando"]
+
+    Status --> TesteSupabase["/teste-supabase"]
+    TesteSupabase --> DBConexao["Conexão com Supabase"]
+
+    %% TESTE: para desenvolvimento e simulações
+    Teste --> Debug
+    Teste --> Simulacao
+
+    %% Classes para cores com texto preto
+    classDef security fill:#ffdddd,stroke:#ff6666,color:#000000
+    classDef status fill:#ddffdd,stroke:#66cc66,color:#000000
+    classDef test fill:#ddddff,stroke:#6666ff,color:#000000
+
+    class Security,VerificarCartao,UIDValido,Entrada,Negado,Alert,Recording,RegistroEntrada,EntradaRegistrada,RegistroSaida,SaidaRegistrada security
+    class Status,HelloWorld,StatusOK,TesteSupabase,DBConexao status
+    class Teste,Debug,Simulacao test
+```
+
 ---
-## ESP32 
+## 🛠 Módulo ESP32 - Guia Completo
 Sendo uma das principais partes do sistema, este módulo requer atenção especial quanto ao seu funcionamento. Recomendamos fortemente a consulta aos arquivos no repositório [ESP32(IoT)](https://github.com/WesleyS08/SALV/tree/main/ESP32(IoT)), onde estão disponíveis os três principais arquivos:
 
-- **ESP32 - Validação de usuários**
-- **endereco_do_lcd**
-- **LeitorDeCartao**
-
-Além desses, há arquivos auxiliares, como o `validacao_de_usuarios.py`, que será citado posteriormente.
-
-Para o desenvolvimento e upload do código, é necessário o uso da IDE Arduino.
-
-### ESP32 - Validação de usuários
-
-Este é o principal código do IoT, responsável pelo controle dos sensores e pelo envio de alertas via MQTT. É importante destacar que, caso a montagem do hardware seja diferente da descrita na documentação deste projeto, será necessário ajustar os seguintes parâmetros no código:
-
-```cpp
-#define PIR_PIN 4
-LiquidCrystal_I2C lcd(0x27, 16, 2);
-MFRC522DriverPinSimple ss_pin(5);
-MFRC522DriverSPI driver{ ss_pin };
-MFRC522 mfrc522{ driver };
+### 📂 Estrutura de Arquivos
+```bash
+ESP32(IoT)/
+├── ESP32_Validacao/      # Código principal
+├── LeitorDeCartao/       # Módulo RFID
+├── endereco_do_lcd/      # Utilitário I2C
 ```
-Além disso, é imprescindível alterar as credenciais de rede e outras configurações, como mostrado a seguir:
+### 🔌 Configuração de Hardware
+| Componente |  Pino ESP32 | Observações| 
+| ---------| -----------| ----------| 
+|Sensor PIR	|GPIO4|	Pull-down recomendado|
+|Leitor RFID|	GPIO5|	Configurável via ss_pin|
+|LCD I2C	|SDA/SCL|	Endereço detectável|
+
+### ⚙️ Código Principal (*ESP32_Validacao.ino*)
 ```cpp
-// APIs e configurações de rede
-const char* API_Cartao = "https://[REDACTED]/verificar-cartao";
-const char* Api_registraEntrada = "https://[REDACTED]/registro-entrada";
-const char* Api_registraSaida = "https://[REDACTED]/registro-acesso";
-const char* ssid = "[REDACTED_SSID]";
-const char* password = "[REDACTED_PASSWORD]";
-const char* mqtt_server = "[REDACTED_MQTT_SERVER]";
-const int mqtt_port = 8883;
-const char* mqtt_user = "[REDACTED_MQTT_USER]";
-const char* mqtt_password = "[REDACTED_MQTT_PASS]";
-const char* pc_mac_str = "[REDACTED_MAC]";
-uint8_t mac_address[6];
-const int wol_port = 9;
+// Configurações críticas (AJUSTAR ANTES DE FLASH)
+#define PIR_PIN 4         // Pino do sensor de movimento
+#define LCD_ADDRESS 0x27  // Endereço I2C do display
+#define SS_PIN 5          // Pino CS do leitor RFID
 
+// Credenciais (substituir com seus dados)
+const char* ssid = "SEU_WIFI";
+const char* mqtt_server = "broker.salv.local";
 ```
-Os demais códigos disponíveis são necessários para auxiliar na montagem e operação do sistema.
+### 🖥️ Utilitários Importantes
+1. Detector de Endereço I2C (*endereco_do_lcd*)
+   ```cpp
+    #include <Wire.h>
 
----
+    void setup() {
+      Wire.begin();
+      Serial.begin(115200);
+      Serial.println("\nScanner I2C...");
+    }
+    
+    void loop() {
+      byte error, address;
+      for(address=1; address<127; address++) {
+        Wire.beginTransmission(address);
+        error = Wire.endTransmission();
+        if(error==0) {
+          Serial.print("Dispositivo encontrado: 0x");
+          Serial.println(address,HEX);
+        }
+      }
+      delay(5000);
+    }
+    ```
+**Uso**: Identifica automaticamente endereços I2C conectados
 
-### endereco_do_lcd
+2. Teste de RFID (*LeitorDeCartao*)
+   ```cpp
+    void loop() {
+      if (!mfrc522.PICC_IsNewCardPresent()) return;
+      
+      if (mfrc522.PICC_ReadCardSerial()) {
+        Serial.print("UID:");
+        for (byte i=0; i<mfrc522.uid.size; i++) {
+          Serial.print(mfrc522.uid.uidByte[i]<0x10?"0":"");
+          Serial.print(mfrc522.uid.uidByte[i],HEX);
+        }
+        Serial.println();
+        mfrc522.PICC_HaltA();
+      }
+    }
+    ```
+### 📌 Boas Práticas
 
-Este código tem como objetivo identificar e exibir o endereço I2C do display LCD conectado ao ESP32. Isso é importante para garantir que o endereço configurado no código principal corresponda ao endereço físico do dispositivo, evitando falhas na comunicação.
-
-A execução desse programa auxilia o usuário a encontrar o endereço correto do LCD, que pode variar dependendo do modelo ou fabricante, além de ajudar a identificar falhas.
-
-Com esse programa, o usuário deve observar no monitor serial o endereço do LCD, que poderá ser utilizado no código principal para configurar corretamente o display:
-
-```cpp
-LiquidCrystal_I2C lcd(0x27, 16, 2);
-```
-onde `0x27` deve ser substituído pelo endereço encontrado, caso seja diferente.
-
-### LeitorDeCartao
-
-Este módulo é responsável pela interface com o leitor RFID MFRC522. Ele gerencia a leitura dos cartões RFID, exibindo o ID do cartão para o usuário, facilitando assim a identificação e o cadastro no aplicativo.
-
-É fundamental assegurar que o pino SS (Slave Select) esteja corretamente configurado, conforme a placa utilizada (por exemplo, pino 5):
-
-```cpp
-MFRC522DriverPinSimple ss_pin(5);
-MFRC522DriverSPI driver{ ss_pin };
-MFRC522 mfrc522{ driver };
-```
-Ressalta-se que o código considera que o ESP32 estará conectado ao `pino 5`.
-
-Os demais códigos, como `validacaodecartao.py` e seu executável, disponíveis na pasta dist, têm como objetivo proporcionar uma interface mais amigável para o usuário.
-
+1. Antes de programar:
+   - Verificar tensão de alimentação (3.3V)
+   - Confirmar endereço I2C com utilitário
+   - Testar comunicação serial (115200 baud)
+  
 --- 
 
-## Autores 👨‍💻👨‍💻🎓
+## 👥 Autores & Agradecimentos
 
-- [Davi de Brito Junior](https://github.com/DaveBrito)
-- [Maria Luiza Cruvinel dos Santos](https://github.com/Cruvnel)
-- [Wesley Silva dos Santos](https://github.com/WesleyS08)
+### 🧑‍💻 Equipe de Desenvolvimento
 
-Este trabalho foi apresentado como requisito parcial para obtenção do título de graduação tecnológica em **Desenvolvimento de Software Multiplataforma** na **Faculdade de Tecnologia Zona Sul – Dom Paulo Evaristo Arns**, sob a orientação do Prof. Dr. Winston Aparecido Andrade.
+| Nome |  Contato | 
+|------|--------------|
+| [Davi de Brito Junior](https://github.com/DaveBrito)  | [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/davi-brito-jr/)| 
+| [Maria Luiza Cruvinel](https://github.com/Cruvnel)  | [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin))](https://www.linkedin.com/in/marialuizacruvinel/)| 
+| [Wesley Silva](https://github.com/WesleyS08)  | [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin))](https://www.linkedin.com/in/wesley-silva-dos-santos-33624b17a/)| 
+
+### 🎓 Instituição Acadêmica
+<div align="center">
+  <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSCzz1sueO210Z7w8fPRzla1GQWo7-eX0F4Bw&s" alt="Logo FATEC" style="margin: 10px">
+  
+  **Trabalho de Conclusão de Curso**  
+  Tecnologia em Desenvolvimento de Software Multiplataforma  
+  Faculdade de Tecnologia Zona Sul – Dom Paulo Evaristo Arns  
+  São Paulo, Brasil - 2025
+</div>
+
+### 🙏 Orientação
+**Prof. Dr. Winston Aparecido Andrade**  
+---
+
+
