@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SALV_App",
+    "name": "SALV_App_",
     "slug": "SALV_App_",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,13 +8,11 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "jsEngine": "jsc",
-    "newArchEnabled": false, 
+    "newArchEnabled": false,
     "ios": {
-      "supportsTablet": true,
-      "usesBackgroundFetch": true  
+      "supportsTablet": true
     },
     "androidStatusBar": {
-      "visible": false,
       "backgroundColor": "#0D283D"
     },
     "android": {
@@ -26,7 +24,7 @@
         "NOTIFICATIONS",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.WAKE_LOCK",
-        "android.permission.FOREGROUND_SERVICE"  
+        "android.permission.FOREGROUND_SERVICE"
       ],
       "package": "com.wesleydavi.salv"
     },
@@ -64,8 +62,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "33444346-c316-4a52-aa24-63a2f5678984"
+        "projectId": "c100e024-e62d-4e82-872e-92e1491eccac"
       }
-    }
+    },
+    "owner": "salv14365435g"
   }
 }
